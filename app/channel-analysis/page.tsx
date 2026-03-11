@@ -160,7 +160,7 @@ export default function ChannelAnalysisPage() {
     setSelectedIds(new Set());
 
     try {
-      const res = await fetch(`/api/channel-analysis?q=${encodeURIComponent(q)}`, {
+      const res = await fetch(`/youtube/api/channel-analysis?q=${encodeURIComponent(q)}`, {
         headers: { 'x-youtube-api-key': getApiKey() },
       });
       const json = await res.json();
@@ -301,7 +301,7 @@ export default function ChannelAnalysisPage() {
           contribution: calcContribution(v.viewCount, data.channel.subscriberCount).value
         }));
 
-      const res = await fetch('/api/ai-analysis', {
+      const res = await fetch('/youtube/api/ai-analysis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

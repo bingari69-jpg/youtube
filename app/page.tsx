@@ -144,7 +144,7 @@ export default function HomePage() {
 
       if (pageToken) params.set('pageToken', pageToken);
 
-      const res = await fetch(`/api/search?${params.toString()}`, {
+      const res = await fetch(`/youtube/api/search?${params.toString()}`, {
         headers: { 'x-youtube-api-key': getApiKey() },
       });
       const data = await res.json();

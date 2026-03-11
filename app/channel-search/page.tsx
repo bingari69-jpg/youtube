@@ -104,7 +104,7 @@ export default function ChannelSearchPage() {
       });
       if (pageToken) params.set('pageToken', pageToken);
 
-      const res = await fetch(`/api/channel-search?${params.toString()}`, {
+      const res = await fetch(`/youtube/api/channel-search?${params.toString()}`, {
         headers: { 'x-youtube-api-key': getApiKey() },
       });
       const data = await res.json();

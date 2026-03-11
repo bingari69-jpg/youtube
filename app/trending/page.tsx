@@ -39,7 +39,7 @@ export default function TrendingPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/trending?regionCode=${regionCode}`);
+      const res = await fetch(`/youtube/api/trending?regionCode=${regionCode}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setChannels(data.channels);

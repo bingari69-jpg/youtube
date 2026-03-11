@@ -60,7 +60,7 @@ export default function ChannelDetailPage({ params }: { params: Promise<{ id: st
   useEffect(() => {
     const fetchChannel = async () => {
       try {
-        const res = await fetch(`/api/channel?id=${id}`, {
+        const res = await fetch(`/youtube/api/channel?id=${id}`, {
           headers: { 'x-youtube-api-key': getApiKey() },
         });
         const json = await res.json();
