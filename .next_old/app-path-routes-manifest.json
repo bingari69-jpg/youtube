@@ -1,0 +1,16 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/api/ai-analysis/route": "/api/ai-analysis",
+  "/api/channel-analysis/route": "/api/channel-analysis",
+  "/api/channel-search/route": "/api/channel-search",
+  "/api/channel/route": "/api/channel",
+  "/api/export-ppt/route": "/api/export-ppt",
+  "/api/search/route": "/api/search",
+  "/api/trending/route": "/api/trending",
+  "/channel-analysis/page": "/channel-analysis",
+  "/channel/[id]/page": "/channel/[id]",
+  "/channel-search/page": "/channel-search",
+  "/collected/page": "/collected",
+  "/page": "/",
+  "/trending/page": "/trending"
+}

@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0C0C0E;
+  --foreground: #F8FAFC;
+  --card: #161618;
+  --card-hover: #1E1E21;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-focus: rgba(255, 107, 0, 0.4);
+  --muted: #94A3B8;
+  --muted-foreground: #64748B;
+  --bg-secondary: #0F172A;
+  --accent: #FF6B00;
+  --accent-glow: rgba(255, 107, 0, 0.15);
+  --header-height: 64px;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  line-height: 1.7;
+  letter-spacing: -0.01em;
+  font-family: var(--font-inter), var(--font-noto-sans-kr), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sora), var(--font-noto-sans-kr), system-ui, sans-serif;
+  letter-spacing: -0.03em;
+  color: #FFFFFF;
+}
+
+.glass {
+  background: rgba(12, 12, 14, 0.75);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.soft-overlay {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+}
+
+.brand-text-gradient {
+  background: linear-gradient(135deg, #FF6B00 0%, #FFB347 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

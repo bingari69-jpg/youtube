@@ -1,0 +1,16 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/ai-analysis/route": "app/api/ai-analysis/route.js",
+  "/api/channel-analysis/route": "app/api/channel-analysis/route.js",
+  "/api/channel-search/route": "app/api/channel-search/route.js",
+  "/api/channel/route": "app/api/channel/route.js",
+  "/api/export-ppt/route": "app/api/export-ppt/route.js",
+  "/api/search/route": "app/api/search/route.js",
+  "/api/trending/route": "app/api/trending/route.js",
+  "/channel-analysis/page": "app/channel-analysis/page.js",
+  "/channel/[id]/page": "app/channel/[id]/page.js",
+  "/channel-search/page": "app/channel-search/page.js",
+  "/collected/page": "app/collected/page.js",
+  "/page": "app/page.js",
+  "/trending/page": "app/trending/page.js"
+}
