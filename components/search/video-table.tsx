@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { ChevronUp, ChevronDown, X } from 'lucide-react';
 import { formatCount, isShorts, type VideoWithChannel } from '@/lib/youtube';
 import { calcContribution, calcPerformance, calcExposure, calcROI } from '@/lib/metrics';
@@ -320,12 +321,12 @@ export function VideoTable({ videos, query, selectedIds, onToggleSelect, onToggl
                           {video.title}
                         </a>
                         <div className="flex items-center gap-1.5 mt-1">
-                          <a
+                          <Link
                             href={`/channel/${video.channelId}`}
                             className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
                           >
                             {video.channelTitle}
-                          </a>
+                          </Link>
                           {isShorts(video.durationSeconds) && (
                             <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-[10px] font-semibold rounded">
                               Shorts

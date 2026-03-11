@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Trash2, FolderOpen } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { formatCount } from '@/lib/youtube';
@@ -166,12 +167,12 @@ export default function CollectedPage() {
                               >
                                 {video.title}
                               </a>
-                              <a
+                              <Link
                                 href={`/channel/${video.channelId}`}
                                 className="text-xs text-gray-400 hover:text-gray-200 transition-colors mt-0.5 block"
                               >
                                 {video.channelTitle}
-                              </a>
+                              </Link>
                             </div>
                           </div>
                         </td>
@@ -204,12 +205,12 @@ export default function CollectedPage() {
             <FolderOpen className="w-16 h-16 mx-auto mb-4 opacity-30" />
             <p className="text-lg text-gray-400">수집한 영상이 없습니다</p>
             <p className="text-sm mt-2">영상 검색 후 체크박스로 선택하고 &quot;영상수집&quot; 버튼을 눌러보세요.</p>
-            <a
+            <Link
               href="/"
               className="inline-block mt-4 px-6 py-2 bg-cl-500 text-white rounded-lg text-sm hover:bg-cl-600 transition-colors"
             >
               영상 검색하기
-            </a>
+            </Link>
           </div>
         )}
       </main>

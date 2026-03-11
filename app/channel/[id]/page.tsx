@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, use } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Users, Eye, Video, TrendingUp, BarChart3, ChevronUp, ChevronDown, X } from 'lucide-react';
 import { formatCount, formatDuration, type YouTubeVideo, type YouTubeChannel } from '@/lib/youtube';
 import { Header } from '@/components/layout/header';
@@ -171,9 +172,9 @@ export default function ChannelDetailPage({ params }: { params: Promise<{ id: st
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-500 text-lg mb-4">{error || '데이터 없음'}</p>
-          <a href="/channel-search" className="text-cl-500 hover:underline">
+          <Link href="/channel-search" className="text-cl-500 hover:underline">
             돌아가기
-          </a>
+          </Link>
         </div>
       </div>
     );

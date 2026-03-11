@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { ChevronUp, ChevronDown, X } from 'lucide-react';
 import { formatCount, type ChannelSearchResult } from '@/lib/youtube';
 import {
@@ -261,7 +262,7 @@ export function ChannelSearchTable({
                   </td>
                   <td className="py-4 pl-2 pr-4">
                     <div className="flex items-center gap-3">
-                      <a href={`/channel/${ch.id}`} className="flex-shrink-0">
+                      <Link href={`/channel/${ch.id}`} className="flex-shrink-0">
                         <Image
                           src={ch.thumbnailUrl}
                           alt={ch.title}
@@ -269,13 +270,13 @@ export function ChannelSearchTable({
                           height={48}
                           className="rounded-full object-cover"
                         />
-                      </a>
-                      <a
+                      </Link>
+                      <Link
                         href={`/channel/${ch.id}`}
                         className="text-[13px] text-gray-100 hover:text-cl-500 font-medium transition-colors line-clamp-1"
                       >
                         {ch.title}
-                      </a>
+                      </Link>
                     </div>
                   </td>
                   <td className="py-4 px-3 text-center">

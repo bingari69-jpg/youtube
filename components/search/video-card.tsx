@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { Eye, ThumbsUp, MessageCircle, Clock } from 'lucide-react';
 import { formatDuration, formatCount, isShorts, type YouTubeVideo } from '@/lib/youtube';
 
@@ -80,12 +81,12 @@ export function VideoCard({ video, highlight }: VideoCardProps) {
             </h3>
           </a>
 
-          <a
+          <Link
             href={`/channel/${video.channelId}`}
             className="block mt-1.5 text-sm text-gray-400 hover:text-gray-200 transition-colors"
           >
             {video.channelTitle}
-          </a>
+          </Link>
 
           <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-gray-400">
             <div className="flex items-center gap-1">
