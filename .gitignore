@@ -37,3 +37,4 @@ __pycache__/
 
 # desktop-cat local secret
 desktop-cat/api_key.txt
+desktop-cat/model.txt

@@ -159,17 +159,18 @@ class OllamaBrain(BaseBrain):
 
 
 def _load_key_file() -> None:
-    """환경변수에 키가 없으면 같은 폴더의 api_key.txt에서 읽는다."""
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "api_key.txt")
-    try:
-        with open(path, encoding="utf-8") as f:
-            key = f.read().strip().strip('"').strip("'")
-        if key:
-            os.environ["ANTHROPIC_API_KEY"] = key
-    except OSError:
-        pass
+    """환경변수가 없으면 같은 폴더의 api_key.txt / model.txt 에서 읽는다."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for env_name, file_name in (("ANTHROPIC_API_KEY", "api_key.txt"), ("CAT_MODEL", "model.txt")):
+        if os.environ.get(env_name):
+            continue
+        try:
+            with open(os.path.join(here, file_name), encoding="utf-8") as f:
+                value = f.read().strip().strip('"').strip("'")
+            if value:
+                os.environ[env_name] = value
+        except OSError:
+            pass
 
 
 def make_brain(cat_name: str = "먹물") -> BaseBrain:
