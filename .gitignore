@@ -34,3 +34,6 @@ next-env.d.ts
 # Python (desktop-cat)
 __pycache__/
 *.pyc
+
+# desktop-cat local secret
+desktop-cat/api_key.txt

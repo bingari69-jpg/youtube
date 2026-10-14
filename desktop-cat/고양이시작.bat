@@ -16,8 +16,16 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+if not exist api_key.txt (
+  echo.
+  echo 고양이와 대화하려면 Anthropic API 키가 필요합니다.
+  echo 키를 붙여넣고 Enter 를 누르세요. 없으면 그냥 Enter. ^(나중에 api_key.txt 파일을 만들어도 됩니다^)
+  set /p CATKEY=API 키: 
+  if defined CATKEY (
+    >api_key.txt echo %CATKEY%
+    echo 저장했습니다: api_key.txt
+  )
+)
 echo [3/3] 고양이 실행!
-rem 대화 기능을 쓰려면 아래 줄의 rem 을 지우고 키를 넣으세요.
-rem set ANTHROPIC_API_KEY=sk-ant-...
 start "" pythonw cat.py
 exit

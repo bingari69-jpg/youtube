@@ -18,9 +18,9 @@
 
 ## 설치와 실행 (Windows)
 
-1. Python 3.10 이상 설치 (설치 시 "Add to PATH" 체크)
-2. `설치.bat` 더블클릭 (PySide6, pynput, anthropic 설치)
-3. `실행.bat` 더블클릭
+1. `고양이시작.bat` 더블클릭. Python이 없으면 다운로드 페이지가 열립니다 (설치 시 "Add python.exe to PATH" 체크 후 다시 더블클릭).
+2. 패키지가 설치되고, API 키를 물어봅니다. 붙여넣고 Enter (없으면 그냥 Enter).
+3. 고양이가 화면 오른쪽 아래에 나타납니다. 다음부터는 `실행.bat`이나 `고양이시작.bat` 아무거나 더블클릭.
 
 macOS/Linux:
 
@@ -41,7 +41,7 @@ macOS는 전역 키보드 감지를 위해 "시스템 설정 → 개인정보 �
 | `CAT_BRAIN=ollama` | 로컬 Ollama 서버 사용. 모델은 `CAT_OLLAMA_MODEL` (기본 `llama3.2`) |
 | 아무것도 없음 | "냐옹"만 하는 대체 두뇌. 나머지 기능은 전부 동작 |
 
-Windows에서 키를 넣는 가장 쉬운 방법은 `실행.bat` 안의 `rem set ANTHROPIC_API_KEY=...` 줄에서 `rem`을 지우는 것입니다.
+Windows에서는 `고양이시작.bat`이 처음 실행 때 키를 물어보고 `api_key.txt`에 저장합니다. 나중에 바꾸려면 `API키바꾸기.bat`을 실행하거나 `api_key.txt`를 직접 고치면 됩니다. 이 파일은 git에 올라가지 않습니다.
 
 나중에 직접 학습시킨 모델을 붙이고 싶으면 `brain.py`에 `BaseBrain`을 상속한 클래스를 하나 추가하고 `make_brain`에서 골라주면 됩니다. `cat.py`는 손댈 필요가 없습니다.
 
