@@ -121,13 +121,14 @@ class Bubble(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self._text = ""
+        self._flip = False
         self._font = QFont()
         self._font.setPointSize(10)
         self._hide_timer = QTimer(self)
         self._hide_timer.setSingleShot(True)
         self._hide_timer.timeout.connect(self.hide)
 
-    def say(self, text: str, anchor: QPoint, seconds: float = 4.0):
+    def say(self, text: str, anchor: QPoint, seconds: float = 4.0, below: QPoint | None = None):
         self._text = text
         fm = self.fontMetrics()
         rect = fm.boundingRect(QRect(0, 0, 220, 1000), Qt.TextFlag.TextWordWrap, text)
@@ -137,8 +138,12 @@ class Bubble(QWidget):
         y = anchor.y() - h - 4
         scr = QGuiApplication.screenAt(anchor) or QGuiApplication.primaryScreen()
         g = scr.availableGeometry()
+        self._flip = False
+        if y < g.top() and below is not None:
+            y = below.y() + 4
+            self._flip = True  # 꼬리를 위로
         x = max(g.left(), min(x, g.right() - w))
-        y = max(g.top(), y)
+        y = max(g.top(), min(y, g.bottom() - h))
         self.move(x, y)
         self.show()
         self.update()
@@ -147,13 +152,20 @@ class Bubble(QWidget):
     def paintEvent(self, _e):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        body = QRect(0, 0, self.width(), self.height() - 8)
-        path = QPainterPath()
-        path.addRoundedRect(body, 10, 10)
         cx = self.width() // 2
-        path.moveTo(cx - 6, body.bottom())
-        path.lineTo(cx, body.bottom() + 8)
-        path.lineTo(cx + 6, body.bottom())
+        path = QPainterPath()
+        if self._flip:
+            body = QRect(0, 8, self.width(), self.height() - 8)
+            path.addRoundedRect(body, 10, 10)
+            path.moveTo(cx - 6, body.top())
+            path.lineTo(cx, body.top() - 8)
+            path.lineTo(cx + 6, body.top())
+        else:
+            body = QRect(0, 0, self.width(), self.height() - 8)
+            path.addRoundedRect(body, 10, 10)
+            path.moveTo(cx - 6, body.bottom())
+            path.lineTo(cx, body.bottom() + 8)
+            path.lineTo(cx + 6, body.bottom())
         p.fillPath(path, QColor("#fffdf5"))
         p.setPen(QPen(QColor("#2b2b2b"), 2))
         p.drawPath(path)
@@ -438,7 +450,9 @@ class Mouse(QWidget):
         self.H = sprites.MOUSE_H * self.scale
         self.resize(self.W, self.H)
         self.x = 0.0
+        self.y = 0.0
         self.vx = 0.0
+        self.vy = 0.0
         self.facing_left = False
         self.mode = "hidden"  # hidden / run / pause / stunned / escaping
         self.mode_until = 0.0
@@ -446,35 +460,55 @@ class Mouse(QWidget):
         self.geom = QRect()
 
     def spawn(self, g: QRect):
+        """화면 네 변 중 한 곳에서 튀어나온다."""
         self.geom = g
-        from_left = random.random() < 0.5
-        self.x = float(g.left() - self.W) if from_left else float(g.right() + 1)
-        self.facing_left = not from_left
+        side = random.choice(["left", "right", "top", "bottom"])
+        if side == "left":
+            self.x, self.y = float(g.left() - self.W), random.uniform(g.top(), g.bottom() - self.H)
+        elif side == "right":
+            self.x, self.y = float(g.right() + 1), random.uniform(g.top(), g.bottom() - self.H)
+        elif side == "top":
+            self.x, self.y = random.uniform(g.left(), g.right() - self.W), float(g.top() - self.H)
+        else:
+            self.x, self.y = random.uniform(g.left(), g.right() - self.W), float(g.bottom() + 1)
         self._run(now=time.time(), toward_center=True)
         self.show()
+
+    def _set_velocity(self, angle: float, speed: float):
+        self.vx = math.cos(angle) * speed
+        self.vy = math.sin(angle) * speed
+        if abs(self.vx) > 0.5:
+            self.facing_left = self.vx < 0
 
     def _run(self, now: float, toward_center: bool = False):
         self.mode = "run"
         speed = random.uniform(4.0, 7.5)
         if toward_center:
-            direction = 1 if self.x < self.geom.center().x() else -1
+            c = self.geom.center()
+            angle = math.atan2(c.y() - self.y, c.x() - self.x) + random.uniform(-0.6, 0.6)
         else:
-            direction = random.choice([-1, 1])
-        self.vx = speed * direction
-        self.facing_left = direction < 0
+            angle = random.uniform(0, 2 * math.pi)
+        self._set_velocity(angle, speed)
         self.mode_until = now + random.uniform(0.6, 1.8)
 
     def stun(self, seconds: float = 1.1):
         self.mode = "stunned"
-        self.vx = 0.0
+        self.vx = self.vy = 0.0
         self.mode_until = time.time() + seconds
 
     def escape(self):
-        """고양이를 피해 가까운 가장자리로 달아난다."""
+        """고양이를 피해 가장 가까운 화면 가장자리로 달아난다."""
         self.mode = "escaping"
-        direction = -1 if (self.x - self.geom.left()) < (self.geom.right() - self.x) else 1
-        self.vx = 9.0 * direction
-        self.facing_left = direction < 0
+        g = self.geom
+        d = {
+            "left": self.x - g.left(),
+            "right": g.right() - self.x,
+            "top": self.y - g.top(),
+            "bottom": g.bottom() - self.y,
+        }
+        side = min(d, key=d.get)
+        angle = {"left": math.pi, "right": 0.0, "top": -math.pi / 2, "bottom": math.pi / 2}[side]
+        self._set_velocity(angle + random.uniform(-0.3, 0.3), 9.0)
 
     def hide_mouse(self):
         self.mode = "hidden"
@@ -484,22 +518,26 @@ class Mouse(QWidget):
         """한 틱 진행. 쥐가 화면 밖으로 빠져나가면 'gone' 을 돌려준다."""
         if self.mode == "hidden":
             return None
+        g = self.geom
         if self.mode == "run":
             self.x += self.vx
+            self.y += self.vy
             self.phase += 1
             if now > self.mode_until:
                 self.mode = "pause"
-                self.vx = 0.0
+                self.vx = self.vy = 0.0
                 self.mode_until = now + random.uniform(0.3, 1.0)
-            # 가장자리에서 되돌아온다 (일반 달리기 중에는 화면 안에 머문다)
-            if self.x < self.geom.left():
-                self.x = float(self.geom.left())
-                self.vx = abs(self.vx)
+            # 가장자리에서 튕긴다 (일반 달리기 중에는 화면 안에 머문다)
+            if self.x < g.left():
+                self.x, self.vx = float(g.left()), abs(self.vx)
                 self.facing_left = False
-            elif self.x > self.geom.right() - self.W:
-                self.x = float(self.geom.right() - self.W)
-                self.vx = -abs(self.vx)
+            elif self.x > g.right() - self.W:
+                self.x, self.vx = float(g.right() - self.W), -abs(self.vx)
                 self.facing_left = True
+            if self.y < g.top():
+                self.y, self.vy = float(g.top()), abs(self.vy)
+            elif self.y > g.bottom() - self.H:
+                self.y, self.vy = float(g.bottom() - self.H), -abs(self.vy)
         elif self.mode == "pause":
             if now > self.mode_until:
                 self._run(now)
@@ -508,16 +546,22 @@ class Mouse(QWidget):
                 self.escape()
         elif self.mode == "escaping":
             self.x += self.vx
+            self.y += self.vy
             self.phase += 1
-            if self.x < self.geom.left() - self.W or self.x > self.geom.right() + 1:
+            if (
+                self.x < g.left() - self.W
+                or self.x > g.right() + 1
+                or self.y < g.top() - self.H
+                or self.y > g.bottom() + 1
+            ):
                 self.hide_mouse()
                 return "gone"
-        self.move(int(self.x), self.geom.bottom() - self.H + 1)
+        self.move(int(self.x), int(self.y))
         self.update()
         return None
 
-    def center_x(self) -> float:
-        return self.x + self.W / 2
+    def center(self) -> tuple[float, float]:
+        return self.x + self.W / 2, self.y + self.H / 2
 
     def paintEvent(self, _e):
         p = QPainter(self)
@@ -563,10 +607,11 @@ class Cat(QWidget):
         self.expression = "normal"
         self.legs = "stand"
         self.facing_left = False
-        self.x = 0.0
-        self.y_off = 0.0  # 바닥 기준 위로 띄운 높이(점프용)
+        self.x = 0.0  # 스프라이트 왼쪽 위 (화면 좌표)
+        self.y = 0.0
+        self.y_off = 0.0  # 점프로 떠오른 높이
         self.vy = 0.0
-        self.target_x: float | None = None
+        self.target: tuple[float, float] | None = None
         self.state_until = 0.0
         self.walk_phase = 0
         self.last_input = time.time()
@@ -586,7 +631,7 @@ class Cat(QWidget):
         self.game_end = 0.0
         self.score = 0
         self.missed = 0
-        self.pounce_target = 0.0
+        self.pounce_target = (0.0, 0.0)
         self.mouse = Mouse(self.scale)
         self.mouse.clicked.connect(self.on_mouse_clicked)
 
@@ -616,26 +661,41 @@ class Cat(QWidget):
 
     # ---------------- 화면/위치 ----------------
     def _screen_geom(self, at: QPoint | None = None) -> QRect:
-        pt = at or QPoint(int(self.x) + self.W // 2, self.y())
+        pt = at or QPoint(int(self.x) + self.W // 2, int(self.y) + self.H // 2)
         scr = QGuiApplication.screenAt(pt) or QGuiApplication.primaryScreen()
         return scr.availableGeometry()
 
     def _place_on_floor(self):
         g = QGuiApplication.primaryScreen().availableGeometry()
         self.x = g.right() - self.W - 80
+        self.y = g.bottom() - self.H + 1
         self._sync_pos()
-
-    def _floor_y(self, g: QRect) -> int:
-        return g.bottom() - self.H + 1
 
     def _sync_pos(self):
         g = self._screen_geom()
         self.x = max(g.left(), min(self.x, g.right() - self.W + 1))
-        top = self._floor_y(g) - int(self.y_off) - self.pad_top
-        self.move(int(self.x), top)
+        self.y = max(g.top(), min(self.y, g.bottom() - self.H + 1))
+        self.move(int(self.x), int(self.y) - int(self.y_off) - self.pad_top)
 
     def anchor_point(self) -> QPoint:
-        return QPoint(int(self.x) + self.W // 2, self._floor_y(self._screen_geom()) - int(self.y_off))
+        """말풍선 꼬리가 닿는 머리 위 지점"""
+        return QPoint(int(self.x) + self.W // 2, int(self.y) - int(self.y_off))
+
+    def anchor_below(self) -> QPoint:
+        return QPoint(int(self.x) + self.W // 2, int(self.y) + self.H - int(self.y_off))
+
+    def _move_toward(self, tx: float, ty: float, speed: float) -> float:
+        """목표 쪽으로 speed 만큼 이동하고 남은 거리를 돌려준다."""
+        dx, dy = tx - self.x, ty - self.y
+        dist = math.hypot(dx, dy)
+        if dist <= speed:
+            self.x, self.y = tx, ty
+            return 0.0
+        self.x += dx / dist * speed
+        self.y += dy / dist * speed
+        if abs(dx) > 1:
+            self.facing_left = dx < 0
+        return dist - speed
 
     # ---------------- 트레이 ----------------
     def _build_tray(self):
@@ -689,9 +749,12 @@ class Cat(QWidget):
             self.state_until = now + random.uniform(2.0, 6.0)
         elif state == self.WALK:
             g = self._screen_geom()
-            self.target_x = random.uniform(g.left(), g.right() - self.W)
+            self.target = (
+                random.uniform(g.left(), g.right() - self.W),
+                random.uniform(g.top(), g.bottom() - self.H),
+            )
             self.expression = "normal"
-            self.state_until = now + 20
+            self.state_until = now + 25
         elif state == self.CHASE:
             self.expression = "excited"
         elif state == self.JUMP:
@@ -701,7 +764,7 @@ class Cat(QWidget):
         elif state == self.SLEEP:
             self.expression = "sleepy"
             self.legs = "sit"
-            self.target_x = None
+            self.target = None
             self.act_sleep.setText("깨우기")
         elif state == self.DIZZY:
             self.expression = "dizzy"
@@ -776,10 +839,9 @@ class Cat(QWidget):
             self.expression = "surprised"
             self.legs = "stand"
         new_top = gp - self.drag_offset
-        self.x = new_top.x()
-        g = self._screen_geom(gp)
-        lift = self._floor_y(g) - self.pad_top - new_top.y()
-        self.y_off = max(0.0, float(lift))
+        self.x = float(new_top.x())
+        self.y = float(new_top.y() + self.pad_top)
+        self.y_off = 0.0
         self._sync_pos()
         self.update()
 
@@ -788,11 +850,9 @@ class Cat(QWidget):
             return
         self.last_input = time.time()
         if self.state == self.DRAG:
-            if getattr(self, "_prev_sleeping", False):
-                self._enter(self.SLEEP)
-            else:
-                self.vy = 0.0
-                self._enter(self.JUMP)  # 떨어지는 연출
+            # 놓은 자리에 그대로 머문다
+            self._enter(self.SLEEP if self._prev_sleeping else self.IDLE)
+            if not self._prev_sleeping:
                 self.expression = "normal"
             return
         # 클릭: 깨우고 대화창 열기
@@ -843,20 +903,18 @@ class Cat(QWidget):
             return
         self.last_input = time.time()
         self.mouse.stun(1.1)
-        self.pounce_target = self.mouse.center_x() - self.W / 2
+        mx, my = self.mouse.center()
+        self.pounce_target = (mx - self.W / 2, my - self.H / 2)
         self._enter(self.POUNCE)
 
     def _do_pounce(self, now: float):
-        dx = self.pounce_target - self.x
-        step = min(abs(dx), 14.0)
-        self.x += step if dx > 0 else -step
-        self.facing_left = dx < 0
+        remaining = self._move_toward(self.pounce_target[0], self.pounce_target[1], 14.0)
         self.y_off += self.vy
         self.vy -= 0.8
         if self.y_off <= 0:
             self.y_off = 0.0
             self.vy = 0.0
-            if abs(dx) <= 10 and self.mouse.mode == "stunned":
+            if remaining <= 10 and self.mouse.mode == "stunned":
                 self.score += 1
                 self.mouse.hide_mouse()
                 self.expression = "excited"
@@ -864,7 +922,7 @@ class Cat(QWidget):
                 QTimer.singleShot(random.randint(900, 1800), lambda: self.game_on and self.mouse.spawn(self._screen_geom()))
                 self._enter(self.IDLE)
                 self.state_until = now + 0.8
-            elif abs(dx) > 10:
+            elif remaining > 10:
                 self.vy = 9.0  # 아직 못 닿았으면 한 번 더 뛴다
             else:
                 self._enter(self.IDLE)
@@ -883,8 +941,13 @@ class Cat(QWidget):
         self._enter(self.CHAT)
         g = self._screen_geom()
         cx = int(self.x) + self.W // 2 - self.chat.width() // 2
-        cy = self._floor_y(g) - self.chat.height() - 24
-        self.chat.move(max(g.left(), min(cx, g.right() - self.chat.width())), max(g.top(), cy))
+        cy = int(self.y) - self.chat.height() - 24
+        if cy < g.top():
+            cy = int(self.y) + self.H + 24
+        self.chat.move(
+            max(g.left(), min(cx, g.right() - self.chat.width())),
+            max(g.top(), min(cy, g.bottom() - self.chat.height())),
+        )
         if not self._reply_watchdog.isActive():
             self.chat.set_busy(False)
         self.chat.show()
@@ -939,7 +1002,7 @@ class Cat(QWidget):
         self.expression = "dizzy"
 
     def say(self, text: str, seconds: float = 4.0):
-        self.bubble.say(text, self.anchor_point(), seconds)
+        self.bubble.say(text, self.anchor_point(), seconds, below=self.anchor_below())
 
     # ---------------- 메인 루프 ----------------
     def tick(self):
@@ -1004,13 +1067,11 @@ class Cat(QWidget):
 
     def _do_chase(self, cur: QPoint, now: float):
         g = self._screen_geom(cur)
-        tx = cur.x() - self.W // 2
-        tx = max(g.left(), min(tx, g.right() - self.W + 1))
-        dx = tx - self.x
-        if abs(dx) > 6:
-            step = min(abs(dx), 5.0)
-            self.x += step if dx > 0 else -step
-            self.facing_left = dx < 0
+        # 커서를 가리지 않도록 커서 바로 아래쪽에 선다
+        tx = max(g.left(), min(cur.x() - self.W // 2, g.right() - self.W + 1))
+        ty = max(g.top(), min(cur.y() + 12, g.bottom() - self.H + 1))
+        if math.hypot(tx - self.x, ty - self.y) > 6:
+            self._move_toward(tx, ty, 5.0)
             self.walk_phase += 1
             self.legs = "walk1" if (self.walk_phase // 5) % 2 == 0 else "walk2"
             self.expression = "excited"
@@ -1022,16 +1083,12 @@ class Cat(QWidget):
             self._enter(self.IDLE)
 
     def _do_walk(self, now: float):
-        if self.target_x is None or now > self.state_until:
+        if self.target is None or now > self.state_until:
             self._enter(self.IDLE)
             return
-        dx = self.target_x - self.x
-        if abs(dx) < 2:
+        if self._move_toward(self.target[0], self.target[1], 1.6) <= 0:
             self._enter(self.IDLE)
             return
-        step = min(abs(dx), 1.6)
-        self.x += step if dx > 0 else -step
-        self.facing_left = dx < 0
         self.walk_phase += 1
         self.legs = "walk1" if (self.walk_phase // 8) % 2 == 0 else "walk2"
 
