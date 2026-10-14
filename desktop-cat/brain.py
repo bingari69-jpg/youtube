@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import time
 import urllib.request
 
 SYSTEM_PROMPT = (
@@ -22,6 +23,15 @@ SYSTEM_PROMPT = (
     "귀엽고 조금 장난스럽지만 사용자를 응원하는 성격이야. "
     "모르는 건 모른다고 솔직하게 말해. 이모지는 쓰지 마."
 )
+
+# 웹 검색 도구가 붙었을 때 덧붙이는 안내
+SEARCH_PROMPT = (
+    " 날씨, 뉴스, 환율, 경기 결과, 오늘 날짜 기준 정보처럼 최신 정보가 필요한 질문은 "
+    "web_search 도구로 검색해서 답해. 검색 결과는 핵심만 한두 문장으로 요약하고 링크는 적지 마. "
+    "사용자 위치는 '{location}'이고 현재 시각은 {now}야."
+)
+
+DEFAULT_LOCATION = "대한민국 서울"
 
 MAX_HISTORY = 20  # 주고받은 메시지 보관 개수 (user+assistant 합산)
 
@@ -72,19 +82,38 @@ class ClaudeBrain(BaseBrain):
         import anthropic  # 지연 임포트: 설치 안 돼 있어도 다른 두뇌는 동작하게
 
         self._anthropic = anthropic
-        self._client = anthropic.Anthropic()
+        # 60초 안에 답이 없으면 포기, 재시도는 1번만 (대화창이 오래 잠기지 않도록)
+        self._client = anthropic.Anthropic(timeout=60.0, max_retries=1)
         self._model = model or os.environ.get("CAT_MODEL", "claude-opus-5-5")
         self._use_fallback = True
+        self._location = os.environ.get("CAT_LOCATION", DEFAULT_LOCATION)
+        self._search = os.environ.get("CAT_WEB_SEARCH", "1") != "0"
+        self._tools = [
+            {
+                "type": "web_search_20260209",
+                "name": "web_search",
+                "max_uses": 3,
+                "user_location": {
+                    "type": "approximate",
+                    "country": os.environ.get("CAT_COUNTRY", "KR"),
+                    "timezone": os.environ.get("CAT_TZ", "Asia/Seoul"),
+                },
+            }
+        ]
 
     def _create(self, messages: list[dict]):
         system = SYSTEM_PROMPT.format(name=self.cat_name)
+        if self._search:
+            system += SEARCH_PROMPT.format(location=self._location, now=time.strftime("%Y-%m-%d %H:%M"))
         common = dict(
             model=self._model,
-            max_tokens=300,
+            max_tokens=3000,  # 생각(thinking)과 검색 결과 처리까지 포함되므로 여유를 둔다
             system=system,
             messages=messages,
             output_config={"effort": "low"},
         )
+        if self._search:
+            common["tools"] = self._tools
         if self._use_fallback:
             try:
                 # 안전 분류기가 거절하면 서버가 다른 모델로 자동 대체한다.
@@ -98,10 +127,27 @@ class ClaudeBrain(BaseBrain):
                 self._use_fallback = False
         return self._client.messages.create(**common)
 
+    def _create_with_search_fallback(self, messages: list[dict]):
+        """검색 도구를 계정/모델이 지원하지 않으면 도구 없이 다시 시도한다."""
+        try:
+            return self._create(messages)
+        except self._anthropic.BadRequestError:
+            if not self._search:
+                raise
+            self._search = False
+            return self._create(messages)
+
     def reply(self, text: str) -> str:
         self._push("user", text)
         try:
-            resp = self._create(self.history)
+            resp = self._create_with_search_fallback(self.history)
+            # 서버 도구(검색)가 길어지면 pause_turn 으로 끊길 수 있어 이어서 요청한다
+            extra: list[dict] = []
+            for _ in range(3):
+                if resp.stop_reason != "pause_turn":
+                    break
+                extra.append({"role": "assistant", "content": resp.content})
+                resp = self._create_with_search_fallback(self.history + extra)
         except self._anthropic.AuthenticationError:
             self.history.pop()
             return "API 키가 잘못됐어, 냥. ANTHROPIC_API_KEY를 확인해줘."
@@ -118,10 +164,13 @@ class ClaudeBrain(BaseBrain):
         if resp.stop_reason == "refusal":
             self.history.pop()
             return "그건 대답하기 어려워, 냥."
+        except_text = None
+        if resp.stop_reason == "max_tokens":
+            except_text = "(말이 너무 길어져서 끊겼어, 냥)"
 
         out = "".join(b.text for b in resp.content if b.type == "text").strip()
         if not out:
-            out = "...냥?"
+            out = except_text or "...냥?"
         self._push("assistant", out)
         return out
 

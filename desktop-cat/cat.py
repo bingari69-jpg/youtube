@@ -14,13 +14,15 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 import random
 import sys
 import time
+import traceback
 
-from PySide6.QtCore import QObject, QPoint, QRect, QThread, QTimer, Qt, Signal
+from PySide6.QtCore import QObject, QPoint, QRect, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtGui import QAction, QColor, QCursor, QFont, QGuiApplication, QIcon, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QApplication,
@@ -38,7 +40,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sprites  # noqa: E402
 from brain import make_brain  # noqa: E402
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+logging.basicConfig(
+    filename=os.path.join(HERE, "cat.log"),
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    encoding="utf-8",
+)
+log = logging.getLogger("cat")
+
 CAT_NAME = os.environ.get("CAT_NAME", "먹물")
+REPLY_TIMEOUT_SEC = float(os.environ.get("CAT_REPLY_TIMEOUT_SEC", "90"))
 TICK_MS = 33  # 약 30fps
 AUTO_SLEEP_SEC = float(os.environ.get("CAT_AUTO_SLEEP_SEC", "180"))
 
@@ -75,19 +87,21 @@ class GlobalKeys(QObject):
 # 대화 워커: API 호출을 GUI 스레드 밖에서 처리
 # ----------------------------------------------------------------------------
 class ChatWorker(QObject):
-    done = Signal(str)
+    done = Signal(str, int)
 
-    def __init__(self, brain, text: str):
+    def __init__(self, brain, text: str, seq: int):
         super().__init__()
         self._brain = brain
         self._text = text
+        self._seq = seq
 
     def run(self):
         try:
             out = self._brain.reply(self._text)
-        except Exception as e:
+        except BaseException as e:  # noqa: BLE001 - 무조건 신호를 보내야 입력이 풀린다
+            log.error("reply failed: %s\n%s", e, traceback.format_exc())
             out = f"머리가 아파서 대답을 못 하겠어, 냥. ({type(e).__name__})"
-        self.done.emit(out)
+        self.done.emit(out, self._seq)
 
 
 # ----------------------------------------------------------------------------
@@ -240,6 +254,10 @@ class Cat(QWidget):
         self.chat.send_requested.connect(self.on_user_said)
         self._thread: QThread | None = None
         self._worker: ChatWorker | None = None
+        self._pending_seq = 0
+        self._reply_watchdog = QTimer(self)
+        self._reply_watchdog.setSingleShot(True)
+        self._reply_watchdog.timeout.connect(self._on_reply_timeout)
 
         self.keys = GlobalKeys()
         self.keys.pressed.connect(self.on_global_key)
@@ -441,6 +459,8 @@ class Cat(QWidget):
         cx = int(self.x) + self.W // 2 - self.chat.width() // 2
         cy = self._floor_y(g) - self.chat.height() - 24
         self.chat.move(max(g.left(), min(cx, g.right() - self.chat.width())), max(g.top(), cy))
+        if not self._reply_watchdog.isActive():
+            self.chat.set_busy(False)
         self.chat.show()
         self.chat.raise_()
         self.chat.activateWindow()
@@ -452,21 +472,45 @@ class Cat(QWidget):
         self.last_input = time.time()
         self._enter(self.CHAT)
         self.expression = "normal"
-        self._thread = QThread()
-        self._worker = ChatWorker(self.brain, text)
-        self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.run)
-        self._worker.done.connect(self.on_cat_said)
-        self._worker.done.connect(self._thread.quit)
-        self._thread.finished.connect(self._thread.deleteLater)
-        self._thread.start()
+        self._pending_seq += 1
+        seq = self._pending_seq
+        log.info("user(%d): %s", seq, text)
+        thread = QThread(self)
+        worker = ChatWorker(self.brain, text, seq)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        # 반드시 GUI 스레드에서 처리되도록 큐 연결
+        worker.done.connect(self.on_cat_said, Qt.ConnectionType.QueuedConnection)
+        worker.done.connect(thread.quit)
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        self._thread, self._worker = thread, worker  # GC 방지
+        thread.start()
+        self._reply_watchdog.start(int(REPLY_TIMEOUT_SEC * 1000))
 
-    def on_cat_said(self, text: str):
-        self.chat.append(CAT_NAME, text)
+    @Slot(str, int)
+    def on_cat_said(self, text: str, seq: int = -1):
+        if seq >= 0 and seq != self._pending_seq:
+            log.info("stale reply ignored (%s)", seq)
+            return
+        self._reply_watchdog.stop()
+        log.info("cat: %s", text)
+        try:
+            self.chat.append(CAT_NAME, text)
+            self.expression = "excited"
+            self.say(text, min(8.0, 2.0 + len(text) * 0.08))
+            QTimer.singleShot(1500, lambda: self.state == self.CHAT and setattr(self, "expression", "smile"))
+        except Exception:
+            log.error("on_cat_said failed\n%s", traceback.format_exc())
+        finally:
+            self.chat.set_busy(False)
+
+    def _on_reply_timeout(self):
+        log.warning("reply timeout (seq %d)", self._pending_seq)
+        self._pending_seq += 1  # 늦게 오는 답은 버린다
+        self.chat.append(CAT_NAME, "...답이 너무 늦네. 다시 말 걸어줘, 냥. (응답 시간 초과)")
         self.chat.set_busy(False)
-        self.expression = "excited"
-        self.say(text, min(8.0, 2.0 + len(text) * 0.08))
-        QTimer.singleShot(1500, lambda: self.state == self.CHAT and setattr(self, "expression", "smile"))
+        self.expression = "dizzy"
 
     def say(self, text: str, seconds: float = 4.0):
         self.bubble.say(text, self.anchor_point(), seconds)
@@ -588,6 +632,7 @@ class Cat(QWidget):
 
 
 def main():
+    sys.excepthook = lambda t, v, tb: log.error("uncaught: %s", "".join(traceback.format_exception(t, v, tb)))
     QApplication.setQuitOnLastWindowClosed(False)
     app = QApplication(sys.argv)
     scale = int(os.environ.get("CAT_SCALE", "6"))
