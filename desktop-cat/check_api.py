@@ -34,7 +34,7 @@ except ImportError:
 model = os.environ.get("CAT_MODEL", "")
 if not model and os.path.exists(os.path.join(here, "model.txt")):
     model = open(os.path.join(here, "model.txt"), encoding="utf-8").read().strip()
-model = model or "claude-opus-5-5"
+model = model or "claude-haiku-5-5"
 print(f"[4] 모델 {model} 로 테스트 호출...")
 client = anthropic.Anthropic(api_key=key)
 try:

@@ -37,7 +37,7 @@ macOS는 전역 키보드 감지를 위해 "시스템 설정 → 개인정보 �
 
 | 설정 | 동작 |
 |---|---|
-| `ANTHROPIC_API_KEY` 설정 | Claude API로 대화 (기본 모델 `claude-opus-5-5`, `CAT_MODEL`로 변경) |
+| `ANTHROPIC_API_KEY` 설정 | Claude API로 대화 (기본 모델 `claude-haiku-5-5`, `SET_MODEL.bat`이나 `CAT_MODEL`로 변경) |
 | `CAT_BRAIN=ollama` | 로컬 Ollama 서버 사용. 모델은 `CAT_OLLAMA_MODEL` (기본 `llama3.2`) |
 | 아무것도 없음 | "냐옹"만 하는 대체 두뇌. 나머지 기능은 전부 동작 |
 
@@ -55,9 +55,9 @@ Claude 두뇌는 웹 검색 도구를 켜 두어서 "오늘 날씨", "환율", "
 
 | 모델 | 입력 $/100만 토큰 | 출력 $/100만 토큰 |
 |---|---|---|
-| claude-haiku-5-5 | 0.10 | 0.50 |
+| claude-haiku-5-5 (기본) | 0.10 | 0.50 |
 | claude-sonnet-5-5 | 2.00 | 10.00 |
-| claude-opus-5-5 (기본) | 4.00 | 20.00 |
+| claude-opus-5-5 | 4.00 | 20.00 |
 
 ## 문제가 생기면
 

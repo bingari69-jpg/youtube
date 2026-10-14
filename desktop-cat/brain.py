@@ -84,7 +84,7 @@ class ClaudeBrain(BaseBrain):
         self._anthropic = anthropic
         # 60초 안에 답이 없으면 포기, 재시도는 1번만 (대화창이 오래 잠기지 않도록)
         self._client = anthropic.Anthropic(timeout=60.0, max_retries=1)
-        self._model = model or os.environ.get("CAT_MODEL", "claude-opus-5-5")
+        self._model = model or os.environ.get("CAT_MODEL", "claude-haiku-5-5")
         self._use_fallback = True
         self._location = os.environ.get("CAT_LOCATION", DEFAULT_LOCATION)
         self._search = os.environ.get("CAT_WEB_SEARCH", "1") != "0"
