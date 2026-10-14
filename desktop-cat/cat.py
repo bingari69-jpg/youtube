@@ -23,15 +23,17 @@ import time
 import traceback
 
 from PySide6.QtCore import QObject, QPoint, QRect, QThread, QTimer, Qt, Signal, Slot
-from PySide6.QtGui import QAction, QColor, QCursor, QFont, QGuiApplication, QIcon, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QAction, QColor, QCursor, QFont, QFontMetrics, QGuiApplication, QIcon, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QApplication,
+    QFrame,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QMenu,
     QPushButton,
+    QScrollArea,
     QSystemTrayIcon,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -161,29 +163,223 @@ class Bubble(QWidget):
 
 
 # ----------------------------------------------------------------------------
-# 대화창
+# 대화창 (메신저 스타일 말풍선)
 # ----------------------------------------------------------------------------
-class ChatWindow(QWidget):
-    send_requested = Signal(str)
+UI_BG = QColor("#fffdf7")
+UI_INK = QColor("#2b2b2b")
+UI_CAT_BUBBLE = QColor("#f1efe8")
+UI_USER_BUBBLE = QColor("#2b2b2b")
+UI_ACCENT = QColor("#f2a6b0")
+
+
+class MessageBubble(QWidget):
+    """말풍선 하나. mine=True 면 오른쪽(사용자), 아니면 왼쪽(고양이)."""
+
+    def __init__(self, text: str, mine: bool, max_width: int):
+        super().__init__()
+        self.text = text
+        self.mine = mine
+        self.max_width = max_width
+        self._font = QFont()
+        self._font.setPointSize(10)
+        self.avatar = None if mine else sprites.pixmap("smile", "stand", 2)
+        self._layout_text()
+
+    def _layout_text(self):
+        fm = QFontMetrics(self._font)
+        limit = self.max_width - 28
+        rect = fm.boundingRect(QRect(0, 0, limit, 10000), Qt.TextFlag.TextWordWrap, self.text)
+        inner_w = min(limit, rect.width() + 6)  # 줄바꿈 오차 여유
+        rect = fm.boundingRect(QRect(0, 0, inner_w, 10000), Qt.TextFlag.TextWordWrap, self.text)
+        self.bw = inner_w + 28
+        self.bh = rect.height() + 22
+        extra = 0 if self.mine else 40
+        self.setFixedHeight(self.bh + 6)
+        self.setMinimumWidth(self.bw + extra)
+
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setFont(self._font)
+        if self.mine:
+            x = self.width() - self.bw
+            r = QRect(x, 0, self.bw, self.bh)
+            path = QPainterPath()
+            path.addRoundedRect(r, 14, 14)
+            path.addRect(r.right() - 14, r.bottom() - 14, 15, 15)  # 오른쪽 아래 모서리만 각지게
+            p.fillPath(path.simplified(), UI_USER_BUBBLE)
+            p.setPen(QColor("#ffffff"))
+        else:
+            if self.avatar:
+                p.drawPixmap(0, self.bh - self.avatar.height() - 2, self.avatar)
+            x = 40
+            r = QRect(x, 0, self.bw, self.bh)
+            path = QPainterPath()
+            path.addRoundedRect(r, 14, 14)
+            path.addRect(r.left(), r.bottom() - 14, 15, 15)  # 왼쪽 아래 모서리만 각지게
+            p.fillPath(path.simplified(), UI_CAT_BUBBLE)
+            p.setPen(UI_INK)
+        p.drawText(r.adjusted(14, 10, -14, -10), Qt.TextFlag.TextWordWrap, self.text)
+        p.end()
+
+
+class TypingBubble(QWidget):
+    """고양이가 생각 중일 때 점 세 개가 움직이는 풍선."""
 
     def __init__(self):
-        super().__init__(None, Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)
+        super().__init__()
+        self.setFixedSize(110, 40)
+        self.phase = 0
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._tick)
+        self.timer.start(300)
+        self.avatar = sprites.pixmap("normal", "stand", 2)
+
+    def _tick(self):
+        self.phase = (self.phase + 1) % 3
+        self.update()
+
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.drawPixmap(0, 34 - self.avatar.height() - 2, self.avatar)
+        r = QRect(40, 0, 64, 34)
+        path = QPainterPath()
+        path.addRoundedRect(r, 14, 14)
+        p.fillPath(path, UI_CAT_BUBBLE)
+        for i in range(3):
+            c = QColor(UI_INK) if i == self.phase else QColor("#9a978f")
+            p.setBrush(c)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawEllipse(QPoint(40 + 18 + i * 14, 17), 4, 4)
+        p.end()
+
+
+class ChatWindow(QWidget):
+    send_requested = Signal(str)
+    WIDTH, HEIGHT = 340, 440
+
+    def __init__(self):
+        super().__init__(
+            None,
+            Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool,
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setWindowTitle(f"{CAT_NAME}와 대화")
-        self.resize(320, 360)
-        lay = QVBoxLayout(self)
-        self.log = QTextEdit()
-        self.log.setReadOnly(True)
-        lay.addWidget(self.log)
+        self.resize(self.WIDTH, self.HEIGHT)
+        self._drag_pos = None
+        self._typing: TypingBubble | None = None
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(14, 10, 14, 14)
+        root.setSpacing(8)
+
+        # 제목줄
+        title = QHBoxLayout()
+        icon = QLabel()
+        icon.setPixmap(sprites.pixmap("smile", "stand", 2))
+        name = QLabel(CAT_NAME)
+        f = QFont()
+        f.setPointSize(11)
+        f.setBold(True)
+        name.setFont(f)
+        name.setStyleSheet("color: #2b2b2b;")
+        self.close_btn = QPushButton("×")
+        self.close_btn.setFixedSize(26, 26)
+        self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.close_btn.setStyleSheet(
+            "QPushButton{border:none;border-radius:13px;background:transparent;color:#8a877f;font-size:18px;}"
+            "QPushButton:hover{background:#f1efe8;color:#2b2b2b;}"
+        )
+        self.close_btn.clicked.connect(self.hide)
+        title.addWidget(icon)
+        title.addSpacing(4)
+        title.addWidget(name)
+        title.addStretch()
+        title.addWidget(self.close_btn)
+        root.addLayout(title)
+
+        # 메시지 영역
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.setStyleSheet(
+            "QScrollArea{background:transparent;}"
+            "QScrollBar:vertical{width:6px;background:transparent;margin:0;}"
+            "QScrollBar::handle:vertical{background:#d9d6cc;border-radius:3px;min-height:24px;}"
+            "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}"
+        )
+        self.container = QWidget()
+        self.container.setStyleSheet("background:transparent;")
+        self.vbox = QVBoxLayout(self.container)
+        self.vbox.setContentsMargins(0, 4, 6, 4)
+        self.vbox.setSpacing(6)
+        self.vbox.addStretch()
+        self.scroll.setWidget(self.container)
+        root.addWidget(self.scroll, 1)
+
+        # 입력줄
         row = QHBoxLayout()
+        row.setSpacing(8)
         self.input = QLineEdit()
-        self.input.setPlaceholderText("고양이에게 말 걸기... (Enter)")
-        self.btn = QPushButton("보내기")
-        row.addWidget(self.input)
+        self.input.setPlaceholderText("말 걸기...")
+        self.input.setFixedHeight(38)
+        self.input.setStyleSheet(
+            "QLineEdit{border:2px solid #e6e3da;border-radius:19px;padding:0 14px;background:#ffffff;"
+            "color:#2b2b2b;font-size:10pt;selection-background-color:#f2a6b0;}"
+            "QLineEdit:focus{border-color:#f2a6b0;}"
+            "QLineEdit:disabled{background:#f6f4ee;color:#9a978f;}"
+        )
+        self.btn = QPushButton("➤")
+        self.btn.setFixedSize(38, 38)
+        self.btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn.setStyleSheet(
+            "QPushButton{border:none;border-radius:19px;background:#2b2b2b;color:#ffffff;font-size:14px;}"
+            "QPushButton:hover{background:#444444;}"
+            "QPushButton:disabled{background:#d9d6cc;color:#ffffff;}"
+        )
+        row.addWidget(self.input, 1)
         row.addWidget(self.btn)
-        lay.addLayout(row)
+        root.addLayout(row)
+
         self.input.returnPressed.connect(self._send)
         self.btn.clicked.connect(self._send)
 
+    # 창 배경(둥근 카드)과 그림자
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect().adjusted(4, 4, -4, -4)
+        shadow = QPainterPath()
+        shadow.addRoundedRect(r.adjusted(0, 3, 0, 3), 22, 22)
+        p.fillPath(shadow, QColor(0, 0, 0, 40))
+        card = QPainterPath()
+        card.addRoundedRect(r, 22, 22)
+        p.fillPath(card, UI_BG)
+        p.setPen(QPen(QColor("#e6e3da"), 1.5))
+        p.drawPath(card)
+        p.end()
+
+    # 제목줄 드래그로 창 옮기기
+    def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton and e.position().y() < 44:
+            self._drag_pos = e.globalPosition().toPoint() - self.frameGeometry().topLeft()
+
+    def mouseMoveEvent(self, e):
+        if self._drag_pos is not None and e.buttons() & Qt.MouseButton.LeftButton:
+            self.move(e.globalPosition().toPoint() - self._drag_pos)
+
+    def mouseReleaseEvent(self, _e):
+        self._drag_pos = None
+
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key.Key_Escape:
+            self.hide()
+        else:
+            super().keyPressEvent(e)
+
+    # ---- 외부에서 쓰는 API ----
     def _send(self):
         text = self.input.text().strip()
         if not text:
@@ -194,13 +390,41 @@ class ChatWindow(QWidget):
         self.send_requested.emit(text)
 
     def append(self, who: str, text: str):
-        self.log.append(f"<b>{who}</b>: {text}")
+        mine = who == "나"
+        bubble = MessageBubble(text, mine, int(self.width() * 0.72))
+        self._remove_typing()
+        self.vbox.addWidget(bubble, 0, Qt.AlignmentFlag.AlignRight if mine else Qt.AlignmentFlag.AlignLeft)
+        QTimer.singleShot(0, self._scroll_bottom)
 
     def set_busy(self, busy: bool):
         self.input.setEnabled(not busy)
         self.btn.setEnabled(not busy)
-        if not busy:
+        if busy:
+            if self._typing is None:
+                self._typing = TypingBubble()
+                self.vbox.addWidget(self._typing, 0, Qt.AlignmentFlag.AlignLeft)
+                QTimer.singleShot(0, self._scroll_bottom)
+        else:
+            self._remove_typing()
             self.input.setFocus()
+
+    def _remove_typing(self):
+        if self._typing is not None:
+            self.vbox.removeWidget(self._typing)
+            self._typing.deleteLater()
+            self._typing = None
+
+    def _scroll_bottom(self):
+        bar = self.scroll.verticalScrollBar()
+        bar.setValue(bar.maximum())
+
+    def transcript(self) -> str:
+        out = []
+        for i in range(self.vbox.count()):
+            w = self.vbox.itemAt(i).widget()
+            if isinstance(w, MessageBubble):
+                out.append(("나: " if w.mine else f"{CAT_NAME}: ") + w.text)
+        return "\n".join(out)
 
 
 # ----------------------------------------------------------------------------

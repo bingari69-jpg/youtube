@@ -16,6 +16,8 @@ import random
 import time
 import urllib.request
 
+import local_info
+
 SYSTEM_PROMPT = (
     "너는 사용자의 모니터 위에 사는 작은 검은 픽셀 고양이야. 이름은 '{name}'. "
     "사용자가 일하다가 너를 깨워서 말을 걸었어. "
@@ -26,12 +28,13 @@ SYSTEM_PROMPT = (
 
 # 웹 검색 도구가 붙었을 때 덧붙이는 안내
 SEARCH_PROMPT = (
-    " 날씨, 뉴스, 환율, 경기 결과, 오늘 날짜 기준 정보처럼 최신 정보가 필요한 질문은 "
-    "web_search 도구로 검색해서 답해. 검색 결과는 핵심만 한두 문장으로 요약하고 링크는 적지 마. "
-    "사용자 위치는 '{location}'이고 현재 시각은 {now}야."
+    " 뉴스, 환율, 경기 결과처럼 최신 정보가 필요한 질문은 "
+    "web_search 도구로 검색해서 답해. 검색 결과는 핵심만 한두 문장으로 요약하고 링크는 적지 마."
 )
+# 항상 덧붙이는 상황 정보
+CONTEXT_PROMPT = " 사용자 위치는 '{location}'이고 현재 시각은 {now}야. 메시지에 [참고 정보]가 붙어 있으면 그 데이터를 근거로 답해."
 
-DEFAULT_LOCATION = "대한민국 서울"
+DEFAULT_LOCATION = "서울"
 
 MAX_HISTORY = 20  # 주고받은 메시지 보관 개수 (user+assistant 합산)
 
@@ -52,6 +55,14 @@ class BaseBrain:
         """동기 호출. GUI에서는 워커 스레드에서 부른다."""
         raise NotImplementedError
 
+    @staticmethod
+    def enrich(text: str) -> str:
+        """날씨처럼 키 없이 가져올 수 있는 정보를 모델에게 참고 자료로 덧붙인다."""
+        info = local_info.context_for(text)
+        if info:
+            return f"{text}\n\n[참고 정보 - 방금 조회한 실제 데이터이니 이걸로 답해: {info}]"
+        return text
+
     def reset(self) -> None:
         self.history = []
 
@@ -69,7 +80,8 @@ class MeowBrain(BaseBrain):
 
     def reply(self, text: str) -> str:
         self._push("user", text)
-        out = random.choice(self._lines)
+        info = local_info.context_for(text)
+        out = f"냐옹, {info}" if info else random.choice(self._lines)
         self._push("assistant", out)
         return out
 
@@ -87,7 +99,7 @@ class ClaudeBrain(BaseBrain):
         self._model = model or os.environ.get("CAT_MODEL", "claude-haiku-5-5")
         self._use_fallback = True
         self._location = os.environ.get("CAT_LOCATION", DEFAULT_LOCATION)
-        self._search = os.environ.get("CAT_WEB_SEARCH", "1") != "0"
+        self._search = os.environ.get("CAT_WEB_SEARCH", "0") == "1"
         # 검색 도구 버전: 동적 필터링(20260209)은 Opus/Sonnet 계열만 지원. Haiku 등은 기본형(20250305).
         search_type = os.environ.get("CAT_SEARCH_TOOL") or (
             "web_search_20260209" if ("opus" in self._model or "sonnet" in self._model) else "web_search_20250305"
@@ -107,8 +119,9 @@ class ClaudeBrain(BaseBrain):
 
     def _create(self, messages: list[dict]):
         system = SYSTEM_PROMPT.format(name=self.cat_name)
+        system += CONTEXT_PROMPT.format(location=self._location, now=time.strftime("%Y-%m-%d %H:%M"))
         if self._search:
-            system += SEARCH_PROMPT.format(location=self._location, now=time.strftime("%Y-%m-%d %H:%M"))
+            system += SEARCH_PROMPT
         common = dict(
             model=self._model,
             max_tokens=3000,  # 생각(thinking)과 검색 결과 처리까지 포함되므로 여유를 둔다
@@ -143,6 +156,7 @@ class ClaudeBrain(BaseBrain):
 
     def reply(self, text: str) -> str:
         self._push("user", text)
+        self.history[-1] = {"role": "user", "content": self.enrich(text)}
         try:
             resp = self._create_with_search_fallback(self.history)
             # 서버 도구(검색)가 길어지면 pause_turn 으로 끊길 수 있어 이어서 요청한다
@@ -175,6 +189,7 @@ class ClaudeBrain(BaseBrain):
         out = "".join(b.text for b in resp.content if b.type == "text").strip()
         if not out:
             out = except_text or "...냥?"
+        self.history[-2] = {"role": "user", "content": text}  # 기록에는 원문만 남긴다
         self._push("assistant", out)
         return out
 
@@ -189,6 +204,7 @@ class OllamaBrain(BaseBrain):
 
     def reply(self, text: str) -> str:
         self._push("user", text)
+        self.history[-1] = {"role": "user", "content": self.enrich(text)}
         body = {
             "model": self._model,
             "stream": False,
@@ -207,6 +223,7 @@ class OllamaBrain(BaseBrain):
         except Exception as e:  # 네트워크/모델 오류는 전부 고양이 말로 보고
             self.history.pop()
             return f"로컬 모델이 응답하지 않아, 냥. ({type(e).__name__})"
+        self.history[-1] = {"role": "user", "content": text}
         self._push("assistant", out)
         return out
 
