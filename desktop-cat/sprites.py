@@ -102,3 +102,55 @@ def pixmap(expression: str, legs: str, scale: int, flip: bool = False) -> QPixma
     pm = QPixmap.fromImage(img)
     _cache[key] = pm
     return pm
+
+
+# ----------------------------------------------------------------------------
+# 쥐 (쥐 잡기 게임용). 12칸 x 7칸. 'g' 회색 몸, 'p' 분홍 귀/코, 'w' 눈, 't' 꼬리
+# ----------------------------------------------------------------------------
+MOUSE_W = 12
+MOUSE_H = 7
+_MOUSE = [
+    "..pp........",
+    "..gpg.......",
+    ".ggggg......",
+    "pgwgggggg...",
+    ".ggggggggttt",
+    "..gg.gg.....",
+    "............",
+]
+_MOUSE_RUN = [
+    "..pp........",
+    "..gpg.......",
+    ".ggggg......",
+    "pgwgggggg...",
+    ".ggggggggtt.",
+    ".gg...gg..t.",
+    "............",
+]
+MOUSE_COLORS = {
+    "g": QColor("#8d8a84"),
+    "p": QColor("#f2a6b0"),
+    "w": QColor("#2b2b2b"),
+    "t": QColor("#b5b2aa"),
+}
+
+
+def mouse_pixmap(scale: int, flip: bool = False, run: bool = False) -> QPixmap:
+    key = ("mouse", run, scale, flip)
+    if key in _cache:
+        return _cache[key]
+    grid = _MOUSE_RUN if run else _MOUSE
+    img = QImage(MOUSE_W * scale, MOUSE_H * scale, QImage.Format.Format_ARGB32)
+    img.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(img)
+    for y, row in enumerate(grid):
+        for x, ch in enumerate(row):
+            color = MOUSE_COLORS.get(ch)
+            if color is None:
+                continue
+            px = (MOUSE_W - 1 - x) if flip else x
+            painter.fillRect(px * scale, y * scale, scale, scale, color)
+    painter.end()
+    pm = QPixmap.fromImage(img)
+    _cache[key] = pm
+    return pm

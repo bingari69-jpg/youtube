@@ -419,10 +419,129 @@ class ChatWindow(QWidget):
 
 
 # ----------------------------------------------------------------------------
+# 쥐 (쥐 잡기 게임)
+# ----------------------------------------------------------------------------
+class Mouse(QWidget):
+    clicked = Signal()
+    GAME_SEC = 45.0
+
+    def __init__(self, scale: int):
+        super().__init__(
+            None,
+            Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool,
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.scale = max(3, scale - 1)
+        self.W = sprites.MOUSE_W * self.scale
+        self.H = sprites.MOUSE_H * self.scale
+        self.resize(self.W, self.H)
+        self.x = 0.0
+        self.vx = 0.0
+        self.facing_left = False
+        self.mode = "hidden"  # hidden / run / pause / stunned / escaping
+        self.mode_until = 0.0
+        self.phase = 0
+        self.geom = QRect()
+
+    def spawn(self, g: QRect):
+        self.geom = g
+        from_left = random.random() < 0.5
+        self.x = float(g.left() - self.W) if from_left else float(g.right() + 1)
+        self.facing_left = not from_left
+        self._run(now=time.time(), toward_center=True)
+        self.show()
+
+    def _run(self, now: float, toward_center: bool = False):
+        self.mode = "run"
+        speed = random.uniform(4.0, 7.5)
+        if toward_center:
+            direction = 1 if self.x < self.geom.center().x() else -1
+        else:
+            direction = random.choice([-1, 1])
+        self.vx = speed * direction
+        self.facing_left = direction < 0
+        self.mode_until = now + random.uniform(0.6, 1.8)
+
+    def stun(self, seconds: float = 1.1):
+        self.mode = "stunned"
+        self.vx = 0.0
+        self.mode_until = time.time() + seconds
+
+    def escape(self):
+        """고양이를 피해 가까운 가장자리로 달아난다."""
+        self.mode = "escaping"
+        direction = -1 if (self.x - self.geom.left()) < (self.geom.right() - self.x) else 1
+        self.vx = 9.0 * direction
+        self.facing_left = direction < 0
+
+    def hide_mouse(self):
+        self.mode = "hidden"
+        self.hide()
+
+    def step(self, now: float) -> str | None:
+        """한 틱 진행. 쥐가 화면 밖으로 빠져나가면 'gone' 을 돌려준다."""
+        if self.mode == "hidden":
+            return None
+        if self.mode == "run":
+            self.x += self.vx
+            self.phase += 1
+            if now > self.mode_until:
+                self.mode = "pause"
+                self.vx = 0.0
+                self.mode_until = now + random.uniform(0.3, 1.0)
+            # 가장자리에서 되돌아온다 (일반 달리기 중에는 화면 안에 머문다)
+            if self.x < self.geom.left():
+                self.x = float(self.geom.left())
+                self.vx = abs(self.vx)
+                self.facing_left = False
+            elif self.x > self.geom.right() - self.W:
+                self.x = float(self.geom.right() - self.W)
+                self.vx = -abs(self.vx)
+                self.facing_left = True
+        elif self.mode == "pause":
+            if now > self.mode_until:
+                self._run(now)
+        elif self.mode == "stunned":
+            if now > self.mode_until:
+                self.escape()
+        elif self.mode == "escaping":
+            self.x += self.vx
+            self.phase += 1
+            if self.x < self.geom.left() - self.W or self.x > self.geom.right() + 1:
+                self.hide_mouse()
+                return "gone"
+        self.move(int(self.x), self.geom.bottom() - self.H + 1)
+        self.update()
+        return None
+
+    def center_x(self) -> float:
+        return self.x + self.W / 2
+
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        run = self.mode in ("run", "escaping") and (self.phase // 4) % 2 == 0
+        p.drawPixmap(0, 0, sprites.mouse_pixmap(self.scale, self.facing_left, run))
+        if self.mode == "stunned":
+            p.setPen(QColor("#2b2b2b"))
+            f = QFont()
+            f.setPointSize(9)
+            f.setBold(True)
+            p.setFont(f)
+            p.drawText(self.W // 2 - 6, 12, "!")
+        p.end()
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton and self.mode in ("run", "pause"):
+            self.clicked.emit()
+
+
+# ----------------------------------------------------------------------------
 # 고양이 본체
 # ----------------------------------------------------------------------------
 class Cat(QWidget):
-    IDLE, WALK, CHASE, JUMP, SLEEP, DIZZY, CHAT, DRAG = range(8)
+    IDLE, WALK, CHASE, JUMP, SLEEP, DIZZY, CHAT, DRAG, POUNCE = range(9)
 
     def __init__(self, scale: int = 6):
         super().__init__(
@@ -462,6 +581,14 @@ class Cat(QWidget):
         self.press_pos = QPoint()
         self.dragged = False
         self._prev_sleeping = False
+
+        self.game_on = False
+        self.game_end = 0.0
+        self.score = 0
+        self.missed = 0
+        self.pounce_target = 0.0
+        self.mouse = Mouse(self.scale)
+        self.mouse.clicked.connect(self.on_mouse_clicked)
 
         self.brain = make_brain(CAT_NAME)
         self.bubble = Bubble()
@@ -526,6 +653,9 @@ class Cat(QWidget):
         self.act_sleep = QAction("재우기", m)
         self.act_sleep.triggered.connect(self.toggle_sleep)
         m.addAction(self.act_sleep)
+        self.act_game = QAction("쥐 잡기 게임 그만" if self.game_on else "쥐 잡기 게임", m)
+        self.act_game.triggered.connect(self.toggle_game)
+        m.addAction(self.act_game)
         m.addSeparator()
         a = QAction("마우스 따라가기", m, checkable=True, checked=self.chase_enabled)
         a.toggled.connect(lambda v: setattr(self, "chase_enabled", v))
@@ -579,6 +709,9 @@ class Cat(QWidget):
         elif state == self.CHAT:
             self.expression = "smile"
             self.legs = "stand"
+        elif state == self.POUNCE:
+            self.expression = "excited"
+            self.vy = 9.0
         if state != self.SLEEP:
             self.act_sleep.setText("재우기")
         self.update()
@@ -590,6 +723,8 @@ class Cat(QWidget):
             self.sleep()
 
     def sleep(self):
+        if self.game_on:
+            self.end_game(by_user=True)
         self.bubble.hide()
         self._enter(self.SLEEP)
 
@@ -610,7 +745,7 @@ class Cat(QWidget):
         if self.chat.isActiveWindow():
             return  # 대화창 타이핑은 점프 대상이 아님
         self.key_times = [t for t in self.key_times if now - t < 2.0] + [now]
-        if self.state in (self.SLEEP, self.CHAT, self.DRAG, self.DIZZY):
+        if self.state in (self.SLEEP, self.CHAT, self.DRAG, self.DIZZY, self.POUNCE) or self.game_on:
             return
         if len(self.key_times) > 14:
             self.key_times.clear()
@@ -664,6 +799,82 @@ class Cat(QWidget):
         if self.state == self.SLEEP:
             self.wake()
         self.open_chat()
+
+    # ---------------- 쥐 잡기 게임 ----------------
+    def toggle_game(self):
+        if self.game_on:
+            self.end_game(by_user=True)
+        else:
+            self.start_game()
+
+    def start_game(self):
+        if self.state == self.SLEEP:
+            self.wake(greet=False)
+        self.chat.hide()
+        self.game_on = True
+        self.score = 0
+        self.missed = 0
+        self.game_end = time.time() + Mouse.GAME_SEC
+        self._enter(self.IDLE)
+        self.say(f"쥐 잡기 시작! {int(Mouse.GAME_SEC)}초 동안 쥐를 클릭해서 멈추면 내가 덮칠게, 냥!", 4)
+        QTimer.singleShot(1500, lambda: self.game_on and self.mouse.spawn(self._screen_geom()))
+
+    def end_game(self, by_user: bool = False):
+        self.game_on = False
+        self.mouse.hide_mouse()
+        if self.state == self.POUNCE:
+            self.y_off = 0.0
+            self.vy = 0.0
+        self._enter(self.IDLE)
+        if by_user:
+            self.say(f"게임 끝. 잡은 쥐 {self.score}마리, 놓친 쥐 {self.missed}마리, 냥.", 4)
+        else:
+            if self.score >= 8:
+                grade = "대단해! 넌 진짜 사냥꾼이다냥!"
+            elif self.score >= 4:
+                grade = "괜찮은데? 다음엔 더 잡자냥."
+            else:
+                grade = "...쥐가 너무 빨랐다냥."
+            self.say(f"시간 끝! 잡은 쥐 {self.score}마리, 놓친 쥐 {self.missed}마리. {grade}", 6)
+        self.last_input = time.time()
+
+    def on_mouse_clicked(self):
+        if not self.game_on or self.state in (self.SLEEP, self.DRAG):
+            return
+        self.last_input = time.time()
+        self.mouse.stun(1.1)
+        self.pounce_target = self.mouse.center_x() - self.W / 2
+        self._enter(self.POUNCE)
+
+    def _do_pounce(self, now: float):
+        dx = self.pounce_target - self.x
+        step = min(abs(dx), 14.0)
+        self.x += step if dx > 0 else -step
+        self.facing_left = dx < 0
+        self.y_off += self.vy
+        self.vy -= 0.8
+        if self.y_off <= 0:
+            self.y_off = 0.0
+            self.vy = 0.0
+            if abs(dx) <= 10 and self.mouse.mode == "stunned":
+                self.score += 1
+                self.mouse.hide_mouse()
+                self.expression = "excited"
+                self.say(random.choice(["잡았다냥!", "냐하하, 한 마리!", "이 정도야 식은 죽 먹기다냥."]) + f" ({self.score}마리)", 1.6)
+                QTimer.singleShot(random.randint(900, 1800), lambda: self.game_on and self.mouse.spawn(self._screen_geom()))
+                self._enter(self.IDLE)
+                self.state_until = now + 0.8
+            elif abs(dx) > 10:
+                self.vy = 9.0  # 아직 못 닿았으면 한 번 더 뛴다
+            else:
+                self._enter(self.IDLE)
+                self.state_until = now + 0.5
+
+    def _on_mouse_gone(self):
+        self.missed += 1
+        self.expression = "surprised"
+        self.say(random.choice(["앗, 놓쳤다냥...", "쥐가 더 빨랐어...", "다음엔 꼭 잡는다냥."]), 1.6)
+        QTimer.singleShot(random.randint(700, 1500), lambda: self.game_on and self.mouse.spawn(self._screen_geom()))
 
     # ---------------- 대화 ----------------
     def open_chat(self):
@@ -745,10 +956,20 @@ class Cat(QWidget):
         if not self.chat.isVisible() and self.state == self.CHAT:
             self._enter(self.IDLE)
 
+        if self.game_on:
+            if now > self.game_end:
+                self.end_game()
+            elif self.mouse.step(now) == "gone":
+                self._on_mouse_gone()
+                if self.state == self.POUNCE:
+                    self._enter(self.IDLE)
+
         if self.state == self.SLEEP:
             self.zzz_phase += 0.04
         elif self.state == self.DRAG:
             pass
+        elif self.state == self.POUNCE:
+            self._do_pounce(now)
         elif self.state == self.JUMP:
             self.y_off += self.vy
             self.vy -= 0.8
@@ -764,7 +985,7 @@ class Cat(QWidget):
             pass
         else:
             # IDLE / WALK / CHASE
-            if self.chase_enabled and cursor_moved and self.state != self.CHASE:
+            if self.chase_enabled and cursor_moved and self.state != self.CHASE and not self.game_on:
                 self._enter(self.CHASE)
             if self.state == self.CHASE:
                 self._do_chase(cur, now)
@@ -775,7 +996,7 @@ class Cat(QWidget):
                     self._enter(random.choice([self.WALK, self.WALK, self.IDLE]))
                 if now > self.blink_until and random.random() < 0.01:
                     self.blink_until = now + 0.15
-            if now - self.last_input > AUTO_SLEEP_SEC:
+            if now - self.last_input > AUTO_SLEEP_SEC and not self.game_on:
                 self.sleep()
 
         self._sync_pos()
@@ -840,6 +1061,7 @@ class Cat(QWidget):
     # ---------------- 종료 ----------------
     def quit(self):
         self.keys.stop()
+        self.mouse.hide()
         self.bubble.hide()
         self.chat.close()
         self.tray.hide()
