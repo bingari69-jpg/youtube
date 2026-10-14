@@ -31,3 +31,6 @@ next-env.d.ts
 
 # Environment variables
 .env*
+# Python (desktop-cat)
+__pycache__/
+*.pyc
