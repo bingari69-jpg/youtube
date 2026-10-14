@@ -88,9 +88,13 @@ class ClaudeBrain(BaseBrain):
         self._use_fallback = True
         self._location = os.environ.get("CAT_LOCATION", DEFAULT_LOCATION)
         self._search = os.environ.get("CAT_WEB_SEARCH", "1") != "0"
+        # 검색 도구 버전: 동적 필터링(20260209)은 Opus/Sonnet 계열만 지원. Haiku 등은 기본형(20250305).
+        search_type = os.environ.get("CAT_SEARCH_TOOL") or (
+            "web_search_20260209" if ("opus" in self._model or "sonnet" in self._model) else "web_search_20250305"
+        )
         self._tools = [
             {
-                "type": "web_search_20260209",
+                "type": search_type,
                 "name": "web_search",
                 "max_uses": 3,
                 "user_location": {
