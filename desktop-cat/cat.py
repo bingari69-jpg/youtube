@@ -271,19 +271,11 @@ class ChatWindow(QWidget):
         self._typing: TypingBubble | None = None
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(14, 10, 14, 14)
+        root.setContentsMargins(14, 6, 14, 14)
         root.setSpacing(8)
 
-        # 제목줄
+        # 제목줄: 끌어서 옮기는 손잡이와 닫기 버튼만
         title = QHBoxLayout()
-        icon = QLabel()
-        icon.setPixmap(sprites.pixmap("smile", "stand", 2))
-        name = QLabel(CAT_NAME)
-        f = QFont()
-        f.setPointSize(11)
-        f.setBold(True)
-        name.setFont(f)
-        name.setStyleSheet("color: #2b2b2b;")
         self.close_btn = QPushButton("×")
         self.close_btn.setFixedSize(26, 26)
         self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -292,9 +284,6 @@ class ChatWindow(QWidget):
             "QPushButton:hover{background:#f1efe8;color:#2b2b2b;}"
         )
         self.close_btn.clicked.connect(self.hide)
-        title.addWidget(icon)
-        title.addSpacing(4)
-        title.addWidget(name)
         title.addStretch()
         title.addWidget(self.close_btn)
         root.addLayout(title)
@@ -315,7 +304,7 @@ class ChatWindow(QWidget):
         self.vbox = QVBoxLayout(self.container)
         self.vbox.setContentsMargins(0, 4, 6, 4)
         self.vbox.setSpacing(6)
-        self.vbox.addStretch()
+        self.vbox.addStretch()  # 항상 마지막 항목. 메시지는 이 앞에 끼워 넣는다
         self.scroll.setWidget(self.container)
         root.addWidget(self.scroll, 1)
 
@@ -363,7 +352,7 @@ class ChatWindow(QWidget):
 
     # 제목줄 드래그로 창 옮기기
     def mousePressEvent(self, e):
-        if e.button() == Qt.MouseButton.LeftButton and e.position().y() < 44:
+        if e.button() == Qt.MouseButton.LeftButton and e.position().y() < 36:
             self._drag_pos = e.globalPosition().toPoint() - self.frameGeometry().topLeft()
 
     def mouseMoveEvent(self, e):
@@ -393,8 +382,7 @@ class ChatWindow(QWidget):
         mine = who == "나"
         bubble = MessageBubble(text, mine, int(self.width() * 0.72))
         self._remove_typing()
-        self.vbox.addWidget(bubble, 0, Qt.AlignmentFlag.AlignRight if mine else Qt.AlignmentFlag.AlignLeft)
-        QTimer.singleShot(0, self._scroll_bottom)
+        self._insert(bubble, Qt.AlignmentFlag.AlignRight if mine else Qt.AlignmentFlag.AlignLeft)
 
     def set_busy(self, busy: bool):
         self.input.setEnabled(not busy)
@@ -402,11 +390,14 @@ class ChatWindow(QWidget):
         if busy:
             if self._typing is None:
                 self._typing = TypingBubble()
-                self.vbox.addWidget(self._typing, 0, Qt.AlignmentFlag.AlignLeft)
-                QTimer.singleShot(0, self._scroll_bottom)
+                self._insert(self._typing, Qt.AlignmentFlag.AlignLeft)
         else:
             self._remove_typing()
             self.input.setFocus()
+
+    def _insert(self, w: QWidget, align):
+        self.vbox.insertWidget(self.vbox.count() - 1, w, 0, align)
+        QTimer.singleShot(0, self._scroll_bottom)
 
     def _remove_typing(self):
         if self._typing is not None:

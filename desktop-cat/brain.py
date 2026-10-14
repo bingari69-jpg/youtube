@@ -189,7 +189,7 @@ class ClaudeBrain(BaseBrain):
         out = "".join(b.text for b in resp.content if b.type == "text").strip()
         if not out:
             out = except_text or "...냥?"
-        self.history[-2] = {"role": "user", "content": text}  # 기록에는 원문만 남긴다
+        self.history[-1] = {"role": "user", "content": text}  # 기록에는 원문만 남긴다
         self._push("assistant", out)
         return out
 
