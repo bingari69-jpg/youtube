@@ -35,6 +35,14 @@ class SituationMonitor:
             self.work_start = now
         self.last_activity = now
 
+    def work_minutes(self, now: float) -> float:
+        if self.work_start is None or now - self.last_activity > 300:
+            return 0.0
+        return (now - self.work_start) / 60
+
+    def is_active(self, now: float) -> bool:
+        return now - self.last_activity < 300
+
     def _cooldown_ok(self, key: str, now: float, seconds: float) -> bool:
         return now - self.said.get(key, 0.0) > seconds
 

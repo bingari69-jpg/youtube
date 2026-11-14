@@ -41,6 +41,8 @@ from PySide6.QtWidgets import (
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sprites  # noqa: E402
 from brain import make_brain  # noqa: E402
+from comfort import Comfort  # noqa: E402
+from music import MusicPlayer  # noqa: E402
 from notices import NoticeBoard  # noqa: E402
 from settings import Settings  # noqa: E402
 from situations import SituationMonitor  # noqa: E402
@@ -633,6 +635,9 @@ class Cat(QWidget):
         self.jump_enabled = bool(SETTINGS.get("jump", True))
         self.situations = SituationMonitor(SETTINGS)
         self.notices = NoticeBoard(SETTINGS)
+        self.comfort = Comfort(SETTINGS)
+        self.music = MusicPlayer(SETTINGS)
+        self.music.track_changed.connect(lambda t: self.say(f"♪ {t}", 3))
         self.drag_offset = QPoint()
         self.press_pos = QPoint()
         self.dragged = False
@@ -743,6 +748,13 @@ class Cat(QWidget):
             act = QAction(label, stretch, checkable=True, checked=(mins == cur))
             act.triggered.connect(lambda _c=False, mins=mins: SETTINGS.set("stretch_minutes", mins))
             stretch.addAction(act)
+        talk = m.addMenu("말 걸기")
+        cur_c = SETTINGS.get("comfort", "normal")
+        for label, mode in (("자주", "often"), ("보통", "normal"), ("가끔", "rare"), ("끄기", "off")):
+            act = QAction(label, talk, checkable=True, checked=(mode == cur_c))
+            act.triggered.connect(lambda _c=False, mode=mode: SETTINGS.set("comfort", mode))
+            talk.addAction(act)
+        self._music_menu(m)
         n = QAction("소식 알림", m, checkable=True, checked=bool(SETTINGS.get("notices", True)))
         n.toggled.connect(lambda v: SETTINGS.set("notices", v))
         m.addAction(n)
@@ -751,6 +763,34 @@ class Cat(QWidget):
         m.addAction("정보", self.show_about)
         m.addAction("종료", self.quit)
         return m
+
+    def _music_menu(self, parent: QMenu):
+        mm = parent.addMenu("음악")
+        self.music.rescan()
+        if not self.music.available:
+            mm.addAction("(이 빌드는 소리 재생을 지원하지 않음)").setEnabled(False)
+            return
+        if not self.music.tracks:
+            mm.addAction("(music 폴더에 mp3를 넣으세요)").setEnabled(False)
+            return
+        mm.addAction("일시정지" if self.music.is_playing() else "재생", self.music.toggle)
+        mm.addAction("다음 곡", self.music.next)
+        mm.addAction("정지", self.music.stop)
+        mm.addSeparator()
+        cur = self.music.current_title()
+        for i, title in enumerate(self.music.titles()):
+            act = QAction(("♪ " if title == cur else "") + title, mm)
+            act.triggered.connect(lambda _c=False, i=i: self.music.play_index(i))
+            mm.addAction(act)
+        mm.addSeparator()
+        vol = mm.addMenu("볼륨")
+        for v in (20, 40, 60, 80, 100):
+            act = QAction(f"{v}%", vol, checkable=True, checked=(v == self.music.volume()))
+            act.triggered.connect(lambda _c=False, v=v: self.music.set_volume(v))
+            vol.addAction(act)
+        sh = QAction("섞어서 재생", mm, checkable=True, checked=self.music.shuffle)
+        sh.toggled.connect(self.music.set_shuffle)
+        mm.addAction(sh)
 
     def show_about(self):
         self.say(
@@ -817,6 +857,7 @@ class Cat(QWidget):
     def sleep(self):
         if self.game_on:
             self.end_game(by_user=True)
+        self.music.pause()
         self.bubble.hide()
         self._enter(self.SLEEP)
 
@@ -1062,6 +1103,13 @@ class Cat(QWidget):
                 if notice:
                     self.expression = "smile"
                     self.say(notice, 8)
+                else:
+                    hit = self.comfort.check(now, self.situations.work_minutes(now), self.situations.is_active(now))
+                    if hit:
+                        text, expr = hit
+                        self.expression = expr
+                        self.state_until = now + 2.0
+                        self.say(text, 7)
 
         if self.game_on:
             if now > self.game_end:
@@ -1099,6 +1147,12 @@ class Cat(QWidget):
             elif self.state == self.WALK:
                 self._do_walk(now)
             elif self.state == self.IDLE:
+                if self.music.is_playing():
+                    # 음악에 맞춰 발을 구른다
+                    self.walk_phase += 1
+                    self.legs = "walk1" if (self.walk_phase // 9) % 2 == 0 else "walk2"
+                    if self.expression == "normal":
+                        self.expression = "smile"
                 if now > self.state_until:
                     self._enter(random.choice([self.WALK, self.WALK, self.IDLE]))
                 if now > self.blink_until and random.random() < 0.01:
@@ -1162,6 +1216,7 @@ class Cat(QWidget):
     # ---------------- 종료 ----------------
     def quit(self):
         self.keys.stop()
+        self.music.stop()
         self.mouse.hide()
         self.bubble.hide()
         self.chat.close()

@@ -19,6 +19,10 @@ DEFAULTS = {
     "notice_url": "",           # 비어 있으면 notices.json 파일만 읽음
     "location": "서울",
     "auto_sleep_sec": 180,
+    "comfort": "normal",        # 말 걸기 빈도: often | normal | rare | off
+    "music_volume": 40,
+    "music_shuffle": True,
+    "music_last": "",
 }
 
 
