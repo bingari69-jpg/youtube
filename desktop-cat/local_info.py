@@ -1,18 +1,29 @@
-"""API 키 없이 쓰는 정보 조회. 현재는 날씨(Open-Meteo, 무료, 키 불필요).
+"""API 키 없이 쓰는 정보 조회.
 
-brain.py 가 사용자의 말에 날씨 관련 단어가 있으면 여기서 정보를 가져와
-모델에게 참고 자료로 넘기거나, 모델이 없으면 그대로 답한다.
+  날씨/미세먼지 : Open-Meteo (비상업 무료. 상업 배포 시 유료 플랜 또는 기상청 API로 교체 권장)
+  환율          : Frankfurter (유럽중앙은행 고시, 무료)
+  뉴스 헤드라인 : Google 뉴스 RSS
+  공휴일        : Nager.Date (무료)
+
+brain.py 가 사용자의 말을 보고 여기서 정보를 가져와 모델에게 참고 자료로 넘기거나,
+모델이 없으면 answer_for() 가 바로 문장으로 답한다.
 """
 
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import os
 import re
 import time
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 
+RATE_WORDS = ("환율", "달러", "엔화", "유로", "위안", "원화", "usd", "jpy", "eur")
+NEWS_WORDS = ("뉴스", "헤드라인", "소식", "무슨 일", "오늘 이슈", "이슈")
+HOLIDAY_WORDS = ("공휴일", "연휴", "휴일", "빨간날", "빨간 날", "쉬는 날", "쉬는날")
+AIR_WORDS = ("미세먼지", "초미세", "공기", "마스크")
 WEATHER_WORDS = ("날씨", "기온", "온도", "비 와", "비와", "비 오", "비오", "우산", "더워", "더운", "추워", "추운", "눈 와", "눈와", "눈 오", "미세먼지", "습도", "바람")
 
 # WMO weather code -> 한국어
@@ -106,8 +117,152 @@ def get_weather(place: str | None = None) -> str | None:
         return None
 
 
+def _has(text: str, words) -> bool:
+    t = text.replace(" ", "").lower()
+    return any(w.replace(" ", "").lower() in t for w in words)
+
+
+def get_air(place: str | None = None) -> str | None:
+    """미세먼지(PM10/PM2.5) 한 줄 요약."""
+    place = place or os.environ.get("CAT_LOCATION", "서울")
+    key = "air:" + place
+    now = time.time()
+    hit = _cache.get(key)
+    if hit and now - hit[0] < CACHE_SEC:
+        return hit[1]
+    try:
+        geo = _geocode(place)
+        if not geo:
+            return None
+        lat, lon, label = geo
+        d = _get(
+            "https://air-quality-api.open-meteo.com/v1/air-quality"
+            f"?latitude={lat:.4f}&longitude={lon:.4f}&current=pm10,pm2_5&timezone=auto"
+        )
+        cur = d.get("current", {})
+        pm10, pm25 = cur.get("pm10"), cur.get("pm2_5")
+
+        def grade(v, good, normal, bad):
+            if v is None:
+                return "?"
+            return "좋음" if v <= good else "보통" if v <= normal else "나쁨" if v <= bad else "매우 나쁨"
+
+        text = (
+            f"{label} 미세먼지 PM10 {pm10}㎍/㎥ ({grade(pm10, 30, 80, 150)}), "
+            f"초미세먼지 PM2.5 {pm25}㎍/㎥ ({grade(pm25, 15, 35, 75)}) (출처 Open-Meteo)"
+        )
+        _cache[key] = (now, text)
+        return text
+    except Exception:
+        return None
+
+
+def get_rates(text: str = "") -> str | None:
+    """원화 기준 주요 환율."""
+    now = time.time()
+    hit = _cache.get("rates")
+    if hit and now - hit[0] < 3600:
+        return hit[1]
+    try:
+        d = _get("https://api.frankfurter.app/latest?from=KRW&to=USD,JPY,EUR,CNY")
+        r = d.get("rates", {})
+        parts = []
+        for code, name, unit in (("USD", "1달러", 1), ("JPY", "100엔", 100), ("EUR", "1유로", 1), ("CNY", "1위안", 1)):
+            v = r.get(code)
+            if v:
+                parts.append(f"{name} = {unit / v:,.0f}원")
+        if not parts:
+            return None
+        out = "환율 " + ", ".join(parts) + f" (기준일 {d.get('date', '')}, 출처 Frankfurter/ECB)"
+        _cache["rates"] = (now, out)
+        return out
+    except Exception:
+        return None
+
+
+def get_news(count: int = 3) -> str | None:
+    """구글 뉴스 한국 헤드라인."""
+    now = time.time()
+    hit = _cache.get("news")
+    if hit and now - hit[0] < 900:
+        return hit[1]
+    try:
+        req = urllib.request.Request(
+            "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko", headers={"User-Agent": "desktop-cat/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=8) as r:
+            root = ET.fromstring(r.read())
+        titles = []
+        for item in root.iter("item"):
+            t = (item.findtext("title") or "").strip()
+            if t:
+                titles.append(re.sub(r"\s+-\s+[^-]+$", "", t))  # 끝의 ' - 언론사' 제거
+            if len(titles) >= count:
+                break
+        if not titles:
+            return None
+        out = "지금 헤드라인: " + " / ".join(titles) + " (출처 Google 뉴스)"
+        _cache["news"] = (now, out)
+        return out
+    except Exception:
+        return None
+
+
+def get_holidays() -> str | None:
+    """다음 공휴일과 D-day."""
+    now = time.time()
+    hit = _cache.get("holidays")
+    if hit and now - hit[0] < 6 * 3600:
+        return hit[1]
+    try:
+        data = _get("https://date.nager.at/api/v3/NextPublicHolidays/KR")
+        today = _dt.date.today()
+        items = []
+        for h in data[:3]:
+            d = _dt.date.fromisoformat(h["date"])
+            name = h.get("localName") or h.get("name")
+            days = (d - today).days
+            when = "오늘" if days == 0 else f"D-{days}"
+            items.append(f"{d.month}월 {d.day}일 {name} ({when})")
+        if not items:
+            return None
+        out = "다음 공휴일: " + ", ".join(items) + " (출처 Nager.Date)"
+        _cache["holidays"] = (now, out)
+        return out
+    except Exception:
+        return None
+
+
 def context_for(text: str) -> str | None:
     """사용자 말에 맞는 참고 정보를 돌려준다. 없으면 None."""
+    if _has(text, AIR_WORDS):
+        return get_air()
     if wants_weather(text):
         return get_weather()
+    if _has(text, RATE_WORDS):
+        return get_rates(text)
+    if _has(text, NEWS_WORDS):
+        return get_news()
+    if _has(text, HOLIDAY_WORDS):
+        return get_holidays()
+    return None
+
+
+def answer_for(text: str) -> str | None:
+    """모델 없이 바로 쓸 수 있는 고양이 말투 답. 해당 없으면 None."""
+    if _has(text, AIR_WORDS):
+        info = get_air()
+        return f"냐옹, {info}" if info else "미세먼지 정보를 못 가져왔어, 냥. 인터넷 확인해줘."
+    if wants_weather(text):
+        info = get_weather()
+        return f"냐옹, {info}" if info else "날씨를 못 가져왔어, 냥. 인터넷 확인해줘."
+    if _has(text, RATE_WORDS):
+        info = get_rates(text)
+        return f"냥, {info}" if info else "환율을 못 가져왔어, 냥."
+    if _has(text, NEWS_WORDS):
+        info = get_news()
+        return f"냥, {info}" if info else "뉴스를 못 가져왔어, 냥."
+    if _has(text, HOLIDAY_WORDS):
+        info = get_holidays()
+        return f"냥, {info}" if info else "공휴일 정보를 못 가져왔어, 냥."
     return None

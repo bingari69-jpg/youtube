@@ -18,7 +18,7 @@ if errorlevel 1 (
 )
 if not exist api_key.txt (
   echo.
-  echo 고양이와 대화하려면 Anthropic API 키가 필요합니다.
+  echo AI 대화를 쓰려면 Anthropic API 키를 넣으세요. 없어도 대부분 기능은 동작합니다.
   echo 키를 붙여넣고 Enter 를 누르세요. 없으면 그냥 Enter. ^(나중에 api_key.txt 파일을 만들어도 됩니다^)
   set /p CATKEY=API 키: 
   if defined CATKEY (

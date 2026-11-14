@@ -39,3 +39,10 @@ __pycache__/
 desktop-cat/api_key.txt
 desktop-cat/model.txt
 desktop-cat/cat.log
+
+# desktop-cat local state
+desktop-cat/settings.json
+desktop-cat/seen_notices.json
+desktop-cat/build/
+desktop-cat/dist/
+desktop-cat/*.spec

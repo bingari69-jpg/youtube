@@ -3,7 +3,7 @@
 세 가지 백엔드를 같은 인터페이스로 제공한다.
   - ClaudeBrain : Anthropic Claude API (기본, ANTHROPIC_API_KEY 필요)
   - OllamaBrain : 로컬 Ollama 서버 (CAT_BRAIN=ollama)
-  - MeowBrain   : API 없이 "냐옹"만 하는 대체 두뇌 (키가 없을 때 자동)
+  - RuleBrain   : 키 없이 동작하는 기본 두뇌. 규칙 대화 + 날씨/환율/뉴스/공휴일 (키가 없을 때 자동)
 
 나중에 다른 모델(파인튜닝 모델 등)로 바꾸고 싶으면 이 파일만 수정하면 된다.
 """
@@ -17,6 +17,7 @@ import time
 import urllib.request
 
 import local_info
+import rules
 
 SYSTEM_PROMPT = (
     "너는 사용자의 모니터 위에 사는 작은 검은 픽셀 고양이야. 이름은 '{name}'. "
@@ -67,23 +68,19 @@ class BaseBrain:
         self.history = []
 
 
-class MeowBrain(BaseBrain):
-    name = "meow"
-    _lines = [
-        "냐옹.",
-        "냥? 지금 바빠 보이는데.",
-        "...냐아옹. (하품)",
-        "같이 쉬자, 냥.",
-        "오늘도 수고했어, 냐옹.",
-        "API 키를 넣어주면 더 말을 잘할 수 있어, 냥.",
-    ]
+class RuleBrain(BaseBrain):
+    """키 없이 동작하는 기본 두뇌: 규칙 기반 대화 + 키 없는 정보(날씨, 환율, 뉴스, 공휴일)."""
+
+    name = "rules"
 
     def reply(self, text: str) -> str:
         self._push("user", text)
-        info = local_info.context_for(text)
-        out = f"냐옹, {info}" if info else random.choice(self._lines)
+        out = local_info.answer_for(text) or rules.answer(text, self.cat_name)
         self._push("assistant", out)
         return out
+
+
+MeowBrain = RuleBrain  # 예전 이름 호환
 
 
 class ClaudeBrain(BaseBrain):
@@ -246,18 +243,18 @@ def _load_key_file() -> None:
 def make_brain(cat_name: str = "먹물") -> BaseBrain:
     """환경변수(또는 api_key.txt)를 보고 적절한 두뇌를 고른다.
 
-    CAT_BRAIN=claude|ollama|meow 로 강제할 수 있다.
-    지정이 없으면 ANTHROPIC_API_KEY가 있을 때 Claude, 없으면 MeowBrain.
+    CAT_BRAIN=claude|ollama|rules 로 강제할 수 있다.
+    지정이 없으면 ANTHROPIC_API_KEY가 있을 때 Claude, 없으면 RuleBrain(키 불필요).
     """
     _load_key_file()
     choice = os.environ.get("CAT_BRAIN", "").lower()
     if choice == "ollama":
         return OllamaBrain(cat_name)
-    if choice == "meow":
-        return MeowBrain(cat_name)
+    if choice in ("rules", "meow"):
+        return RuleBrain(cat_name)
     if choice == "claude" or os.environ.get("ANTHROPIC_API_KEY"):
         try:
             return ClaudeBrain(cat_name)
         except Exception:
-            return MeowBrain(cat_name)
-    return MeowBrain(cat_name)
+            return RuleBrain(cat_name)
+    return RuleBrain(cat_name)

@@ -4,8 +4,11 @@
 2. "START.bat" 을 더블클릭합니다.
    - Python이 없으면 다운로드 페이지가 열립니다. 설치할 때 "Add python.exe to PATH" 체크!
    - 설치 후 다시 "START.bat" 을 더블클릭합니다.
-3. 검은 창이 API 키를 물어봅니다. 키를 붙여넣고 Enter. (없으면 그냥 Enter)
+3. 검은 창이 API 키를 물어봅니다. 없으면 그냥 Enter. (키 없이도 대화, 날씨, 환율, 뉴스, 게임 전부 됩니다)
 4. 화면 오른쪽 아래에 고양이가 나타납니다.
+
+[배포용 exe 만들기]
+"build_exe.bat" 더블클릭 -> dist\XenicsCat 폴더가 생김 -> 그 폴더를 압축해서 배포
 
 [API 키 바꾸기]
 "SET_API_KEY.bat" 더블클릭 -> 새 키 붙여넣기 -> Enter

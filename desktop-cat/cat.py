@@ -41,6 +41,11 @@ from PySide6.QtWidgets import (
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sprites  # noqa: E402
 from brain import make_brain  # noqa: E402
+from notices import NoticeBoard  # noqa: E402
+from settings import Settings  # noqa: E402
+from situations import SituationMonitor  # noqa: E402
+
+SETTINGS = Settings()
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 logging.basicConfig(
@@ -51,10 +56,14 @@ logging.basicConfig(
 )
 log = logging.getLogger("cat")
 
-CAT_NAME = os.environ.get("CAT_NAME", "먹물")
+CAT_NAME = os.environ.get("CAT_NAME") or SETTINGS.get("name", "먹물")
+BRAND = os.environ.get("CAT_BRAND", "XENICS")
+APP_VERSION = "1.0.0"
 REPLY_TIMEOUT_SEC = float(os.environ.get("CAT_REPLY_TIMEOUT_SEC", "90"))
+if not os.environ.get("CAT_LOCATION") and SETTINGS.get("location"):
+    os.environ["CAT_LOCATION"] = SETTINGS["location"]
 TICK_MS = 33  # 약 30fps
-AUTO_SLEEP_SEC = float(os.environ.get("CAT_AUTO_SLEEP_SEC", "180"))
+AUTO_SLEEP_SEC = float(os.environ.get("CAT_AUTO_SLEEP_SEC") or SETTINGS.get("auto_sleep_sec", 180))
 
 
 # ----------------------------------------------------------------------------
@@ -620,8 +629,10 @@ class Cat(QWidget):
         self.key_times: list[float] = []
         self.blink_until = 0.0
         self.zzz_phase = 0.0
-        self.chase_enabled = True
-        self.jump_enabled = True
+        self.chase_enabled = bool(SETTINGS.get("chase", True))
+        self.jump_enabled = bool(SETTINGS.get("jump", True))
+        self.situations = SituationMonitor(SETTINGS)
+        self.notices = NoticeBoard(SETTINGS)
         self.drag_offset = QPoint()
         self.press_pos = QPoint()
         self.dragged = False
@@ -700,7 +711,7 @@ class Cat(QWidget):
     # ---------------- 트레이 ----------------
     def _build_tray(self):
         self.tray = QSystemTrayIcon(QIcon(sprites.pixmap("normal", "stand", 4)), self)
-        self.tray.setToolTip(f"{CAT_NAME} (데스크톱 고양이)")
+        self.tray.setToolTip(f"{CAT_NAME} · {BRAND} 데스크톱 고양이")
         self.tray.setContextMenu(self._make_menu())
         self.tray.activated.connect(
             lambda r: self.open_chat() if r == QSystemTrayIcon.ActivationReason.Trigger else None
@@ -718,20 +729,38 @@ class Cat(QWidget):
         m.addAction(self.act_game)
         m.addSeparator()
         a = QAction("마우스 따라가기", m, checkable=True, checked=self.chase_enabled)
-        a.toggled.connect(lambda v: setattr(self, "chase_enabled", v))
+        a.toggled.connect(lambda v: (setattr(self, "chase_enabled", v), SETTINGS.set("chase", v)))
         m.addAction(a)
         b = QAction("키보드 점프", m, checkable=True, checked=self.jump_enabled)
-        b.toggled.connect(lambda v: setattr(self, "jump_enabled", v))
+        b.toggled.connect(lambda v: (setattr(self, "jump_enabled", v), SETTINGS.set("jump", v)))
         m.addAction(b)
         size = m.addMenu("크기")
         for label, s in (("작게", 4), ("보통", 6), ("크게", 9)):
             size.addAction(label, lambda s=s: self.set_scale(s))
+        stretch = m.addMenu("스트레칭 알림")
+        cur = int(SETTINGS.get("stretch_minutes", 50) or 0)
+        for label, mins in (("끄기", 0), ("30분마다", 30), ("50분마다", 50), ("60분마다", 60), ("90분마다", 90)):
+            act = QAction(label, stretch, checkable=True, checked=(mins == cur))
+            act.triggered.connect(lambda _c=False, mins=mins: SETTINGS.set("stretch_minutes", mins))
+            stretch.addAction(act)
+        n = QAction("소식 알림", m, checkable=True, checked=bool(SETTINGS.get("notices", True)))
+        n.toggled.connect(lambda v: SETTINGS.set("notices", v))
+        m.addAction(n)
         m.addSeparator()
         m.addAction("대화 기억 지우기", self.brain.reset)
+        m.addAction("정보", self.show_about)
         m.addAction("종료", self.quit)
         return m
 
+    def show_about(self):
+        self.say(
+            f"{CAT_NAME} v{APP_VERSION} · {BRAND}\n두뇌: {self.brain.name}\n"
+            "날씨 Open-Meteo · 환율 Frankfurter · 뉴스 Google · 공휴일 Nager.Date",
+            6,
+        )
+
     def set_scale(self, s: int):
+        SETTINGS.set("scale", s)
         self.scale = s
         self.W = sprites.GRID_W * s
         self.H = sprites.GRID_H * s
@@ -805,6 +834,7 @@ class Cat(QWidget):
     def on_global_key(self):
         now = time.time()
         self.last_input = now
+        self.situations.activity(now)
         if self.chat.isActiveWindow():
             return  # 대화창 타이핑은 점프 대상이 아님
         self.key_times = [t for t in self.key_times if now - t < 2.0] + [now]
@@ -1012,12 +1042,26 @@ class Cat(QWidget):
             self.last_cursor = cur
             self.cursor_still_since = now
             self.last_input = now
+            self.situations.activity(now)
             cursor_moved = True
         else:
             cursor_moved = False
 
         if not self.chat.isVisible() and self.state == self.CHAT:
             self._enter(self.IDLE)
+
+        if self.state in (self.IDLE, self.WALK) and not self.game_on and not self.bubble.isVisible():
+            hit = self.situations.check(now)
+            if hit:
+                text, expr = hit
+                self.expression = expr
+                self.state_until = now + 2.0
+                self.say(text, 6)
+            else:
+                notice = self.notices.next(now)
+                if notice:
+                    self.expression = "smile"
+                    self.say(notice, 8)
 
         if self.game_on:
             if now > self.game_end:
