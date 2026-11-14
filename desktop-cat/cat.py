@@ -42,6 +42,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sprites  # noqa: E402
 from brain import make_brain  # noqa: E402
 from comfort import Comfort  # noqa: E402
+import memo as memo_mod  # noqa: E402
+from growth import Growth  # noqa: E402
+import schedule as sched  # noqa: E402
 from music import MusicPlayer  # noqa: E402
 from notices import NoticeBoard  # noqa: E402
 from settings import Settings  # noqa: E402
@@ -607,9 +610,11 @@ class Cat(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.scale = scale
-        self.W = sprites.GRID_W * scale
-        self.H = sprites.GRID_H * scale
+        self.growth = Growth()
+        self.base_scale = scale
+        self.scale = max(3, round(scale * self.growth.size_mult()))
+        self.W = sprites.GRID_W * self.scale
+        self.H = sprites.GRID_H * self.scale
         # 위쪽에 점프/Zzz 여유 공간을 둔다
         self.pad_top = self.H
         self.resize(self.W, self.H + self.pad_top)
@@ -636,6 +641,9 @@ class Cat(QWidget):
         self.situations = SituationMonitor(SETTINGS)
         self.notices = NoticeBoard(SETTINGS)
         self.comfort = Comfort(SETTINGS)
+        self.memo = memo_mod.MemoWindow(SETTINGS)
+        self.timers: list[QTimer] = []
+        self.reminder = sched.Reminder()
         self.music = MusicPlayer(SETTINGS)
         self.music.track_changed.connect(lambda t: self.say(f"♪ {t}", 3))
         self.drag_offset = QPoint()
@@ -652,7 +660,12 @@ class Cat(QWidget):
         self.mouse.clicked.connect(self.on_mouse_clicked)
 
         self.brain = make_brain(CAT_NAME)
+        if hasattr(self.brain, "tone"):
+            self.brain.tone = self.growth.tone()
         self.bubble = Bubble()
+        self._click_timer = QTimer(self)
+        self._click_timer.setSingleShot(True)
+        self._click_timer.timeout.connect(self._single_click)
         self.chat = ChatWindow()
         self.chat.send_requested.connect(self.on_user_said)
         self._thread: QThread | None = None
@@ -673,7 +686,8 @@ class Cat(QWidget):
         self.timer.start(TICK_MS)
         self._enter(self.IDLE)
         self.show()
-        QTimer.singleShot(600, lambda: self.say(f"안녕, 나는 {CAT_NAME}이야. 냐옹.", 3))
+        QTimer.singleShot(600, lambda: self.say(self.growth_style(
+            f"안녕, 나는 {CAT_NAME}이야. 냐옹." if self.growth.stage > 0 else f"미야옹... 나는 {CAT_NAME}. 아직 아기야. 잘 키워줘, 냐앙."), 4))
 
     # ---------------- 화면/위치 ----------------
     def _screen_geom(self, at: QPoint | None = None) -> QRect:
@@ -726,6 +740,8 @@ class Cat(QWidget):
     def _make_menu(self) -> QMenu:
         m = QMenu()
         m.addAction("대화하기", self.open_chat)
+        m.addAction("메모장", self.open_memo)
+        m.addAction("일정 보기", self.show_schedule)
         self.act_sleep = QAction("재우기", m)
         self.act_sleep.triggered.connect(self.toggle_sleep)
         m.addAction(self.act_sleep)
@@ -760,9 +776,103 @@ class Cat(QWidget):
         m.addAction(n)
         m.addSeparator()
         m.addAction("대화 기억 지우기", self.brain.reset)
+        m.addAction("쓰다듬기", self.pet)
+        m.addAction("성장 상태", lambda: self.say(self.growth.summary(), 8))
         m.addAction("정보", self.show_about)
         m.addAction("종료", self.quit)
         return m
+
+    def open_memo(self):
+        if self.memo.isVisible():
+            self.memo.hide()
+            return
+        if not SETTINGS.get("memo_geometry"):
+            g = self._screen_geom()
+            x = int(self.x) - self.memo.width() - 16
+            if x < g.left():
+                x = int(self.x) + self.W + 16
+            y = max(g.top(), min(int(self.y) - self.memo.height() + self.H, g.bottom() - self.memo.height()))
+            self.memo.move(max(g.left(), min(x, g.right() - self.memo.width())), y)
+        self.memo.reload()
+        self.memo.show()
+        self.memo.raise_()
+        self.memo.activateWindow()
+        self.memo.edit.setFocus()
+
+    def show_schedule(self):
+        items = sched.upcoming(30)
+        if not items:
+            self.say("앞으로 한 달 동안 잡힌 일정이 없어, 냥. 대화창에서 '다음주 화요일 3시 치과 기억해줘'처럼 말해봐.", 7)
+            return
+        lines = [f"{i + 1}. {sched.fmt(it)}" for i, it in enumerate(items[:8])]
+        self.say("앞으로 한 달 일정이야, 냥:\n" + "\n".join(lines), 10)
+
+    def _handle_schedule(self, text: str) -> str | None:
+        cmd = sched.parse_command(text)
+        if not cmd:
+            return None
+        kind, arg = cmd
+        if kind == "add":
+            when, has_time, body = arg
+            item = sched.add(when, body, has_time)
+            return f"기억했어, 냥: {sched.fmt(item)}. 그날 아침에 알려주고, 10분 전에도 깨울게."
+        if kind == "query":
+            start, end, label = arg
+            items = sched.items_between(start, end)
+            if not items:
+                return f"{label} 일정은 없어, 냥. 한가하네!"
+            lines = "\n".join(f"{i + 1}. {sched.fmt(it)}" for i, it in enumerate(items))
+            return f"{label} 일정 {len(items)}개야, 냥:\n{lines}"
+        if kind == "remove":
+            it = sched.remove(arg)
+            return f"지웠어, 냥: {sched.fmt(it)}" if it else "그 번호 일정은 없어, 냥. '일정 보여줘'로 번호를 확인해봐."
+        if kind == "clear":
+            n = sched.clear_all()
+            return f"일정 {n}개 다 지웠어, 냥."
+        if kind == "help":
+            return "날짜랑 내용을 말해주면 기억할게, 냥. 예: '다음주 화요일 3시 치과', '내일 오후 2시 회의', '11월 20일 저녁 동창회'. 보려면 '다음주 일정 뭐 있어?'"
+        return None
+
+    def _handle_command(self, text: str) -> str | None:
+        """메모/타이머/일정 같은 즉답 명령. 처리했으면 답을 돌려주고, 아니면 None."""
+        out = self._handle_schedule(text)
+        if out is not None:
+            return out
+        cmd = memo_mod.parse_command(text)
+        if not cmd:
+            return None
+        kind, arg = cmd
+        if kind == "memo_add":
+            memo_mod.append_memo(arg)
+            if self.memo.isVisible():
+                self.memo.reload()
+            return f"적어뒀어, 냥: \"{arg}\" (우클릭 → 메모장에서 볼 수 있어)"
+        if kind == "memo_show":
+            lines = memo_mod.recent_memo(5)
+            if not lines:
+                return "아직 메모가 없어, 냥. '메모: 내용' 이라고 말하면 적어둘게."
+            return "최근 메모야, 냥:\n" + "\n".join(lines)
+        if kind == "timer":
+            seconds, msg = arg
+            t = QTimer(self)
+            t.setSingleShot(True)
+            t.timeout.connect(lambda t=t, msg=msg: self._timer_fired(t, msg))
+            t.start(int(seconds * 1000))
+            self.timers.append(t)
+            when = (time.strftime("%H:%M", time.localtime(time.time() + seconds)))
+            return f"알았어, {when}에 \"{msg}\" 라고 알려줄게, 냥."
+        return None
+
+    def _timer_fired(self, t: QTimer, msg: str):
+        if t in self.timers:
+            self.timers.remove(t)
+        if self.state == self.SLEEP:
+            self.wake(greet=False)
+        self.expression = "surprised"
+        self.state_until = time.time() + 2.0
+        self.say(f"⏰ {msg}! 냥!", 10)
+        if self.chat.isVisible():
+            self.chat.append(CAT_NAME, f"⏰ {msg}!")
 
     def _music_menu(self, parent: QMenu):
         mm = parent.addMenu("음악")
@@ -801,6 +911,11 @@ class Cat(QWidget):
 
     def set_scale(self, s: int):
         SETTINGS.set("scale", s)
+        self.base_scale = s
+        self._apply_size()
+
+    def _apply_size(self):
+        s = max(3, round(self.base_scale * self.growth.size_mult()))
         self.scale = s
         self.W = sprites.GRID_W * s
         self.H = sprites.GRID_H * s
@@ -926,10 +1041,8 @@ class Cat(QWidget):
             if not self._prev_sleeping:
                 self.expression = "normal"
             return
-        # 클릭: 깨우고 대화창 열기
-        if self.state == self.SLEEP:
-            self.wake()
-        self.open_chat()
+        # 클릭: 더블클릭 가능성 때문에 잠깐 기다렸다가 대화창. 더블클릭이면 쓰다듬기.
+        self._click_timer.start(QApplication.doubleClickInterval())
 
     # ---------------- 쥐 잡기 게임 ----------------
     def toggle_game(self):
@@ -987,6 +1100,7 @@ class Cat(QWidget):
             self.vy = 0.0
             if remaining <= 10 and self.mouse.mode == "stunned":
                 self.score += 1
+                self._gain("catch")
                 self.mouse.hide_mouse()
                 self.expression = "excited"
                 self.say(random.choice(["잡았다냥!", "냐하하, 한 마리!", "이 정도야 식은 죽 먹기다냥."]) + f" ({self.score}마리)", 1.6)
@@ -1004,6 +1118,53 @@ class Cat(QWidget):
         self.expression = "surprised"
         self.say(random.choice(["앗, 놓쳤다냥...", "쥐가 더 빨랐어...", "다음엔 꼭 잡는다냥."]), 1.6)
         QTimer.singleShot(random.randint(700, 1500), lambda: self.game_on and self.mouse.spawn(self._screen_geom()))
+
+    def _single_click(self):
+        if self.state == self.SLEEP:
+            self.wake()
+            self.growth.gain("wake")
+        self.open_chat()
+
+    def mouseDoubleClickEvent(self, e):
+        if e.button() != Qt.MouseButton.LeftButton:
+            return
+        self._click_timer.stop()
+        self.pet()
+
+    def pet(self):
+        """쓰다듬기: 하트 말풍선, 친밀도 +, 가끔 성장."""
+        self.last_input = time.time()
+        if self.state == self.SLEEP:
+            self.expression = "sleepy"
+            self.say(random.choice(["...골골골 (자면서 좋아한다)", "냐암... 조금만 더..."]), 2)
+            return
+        gained = self.growth.gain("pet")
+        self.expression = "smile"
+        self.state_until = time.time() + 2.0
+        if gained is None:
+            return
+        line = random.choice(["♥ 골골골...", "♥ 냐아옹~ 거기 좋아.", "♥ 더 해줘, 냥.", "♥ (눈을 가늘게 뜬다)", "♥ 배는 만지지 마... 아니, 조금은 돼."])
+        if self.growth.last_pet and time.time() - self.growth.last_pet > 0.5:
+            line = random.choice(["♥ 또? 좋아, 냥.", "♥ (꼬리로 손을 감는다)"])
+        self.say(self.growth_style(line), 2.5)
+        if gained:
+            self._on_level_up()
+
+    def growth_style(self, text: str) -> str:
+        from growth import style
+        return style(text, self.growth.tone())
+
+    def _on_level_up(self):
+        self._apply_size()
+        if hasattr(self.brain, "tone"):
+            self.brain.tone = self.growth.tone()
+        self.expression = "excited"
+        self.state_until = time.time() + 3.0
+        self.say(f"나... 컸어! 이제 {self.growth.stage_name()}야, 냥! ({self.growth.days_together()}일째)", 8)
+
+    def _gain(self, kind: str):
+        if self.growth.gain(kind):
+            self._on_level_up()
 
     # ---------------- 대화 ----------------
     def open_chat(self):
@@ -1032,6 +1193,12 @@ class Cat(QWidget):
         self.last_input = time.time()
         self._enter(self.CHAT)
         self.expression = "normal"
+        quick = self._handle_command(text)
+        if quick is not None:
+            self._gain("memo")
+            QTimer.singleShot(150, lambda: self.on_cat_said(self.growth_style(quick), -1))
+            return
+        self._gain("chat")
         self._pending_seq += 1
         seq = self._pending_seq
         log.info("user(%d): %s", seq, text)
@@ -1091,6 +1258,18 @@ class Cat(QWidget):
         if not self.chat.isVisible() and self.state == self.CHAT:
             self._enter(self.IDLE)
 
+        if self.growth.touch_daily():
+            self._on_level_up()
+        if not self.game_on and self.state != self.DRAG:
+            due = self.reminder.check(now, self.situations.is_active(now))
+            if due:
+                if self.state == self.SLEEP:
+                    self.wake(greet=False)
+                self.expression = "surprised"
+                self.state_until = now + 2.0
+                self.say("⏰ " + due, 10)
+                if self.chat.isVisible():
+                    self.chat.append(CAT_NAME, "⏰ " + due)
         if self.state in (self.IDLE, self.WALK) and not self.game_on and not self.bubble.isVisible():
             hit = self.situations.check(now)
             if hit:
@@ -1196,7 +1375,7 @@ class Cat(QWidget):
         expr = self.expression
         if self.state == self.IDLE and time.time() < self.blink_until:
             expr = "blink"
-        pm = sprites.pixmap(expr, self.legs, self.scale, self.facing_left)
+        pm = sprites.pixmap(expr, self.legs, self.scale, self.facing_left, baby=(self.growth.stage == 0))
         p.drawPixmap(0, self.pad_top, pm)
         if self.state == self.SLEEP:
             p.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -1217,6 +1396,7 @@ class Cat(QWidget):
     def quit(self):
         self.keys.stop()
         self.music.stop()
+        self.memo.hide()
         self.mouse.hide()
         self.bubble.hide()
         self.chat.close()

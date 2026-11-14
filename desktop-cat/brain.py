@@ -72,10 +72,16 @@ class RuleBrain(BaseBrain):
     """키 없이 동작하는 기본 두뇌: 규칙 기반 대화 + 키 없는 정보(날씨, 환율, 뉴스, 공휴일)."""
 
     name = "rules"
+    tone = "adult"  # growth 가 바꿔준다
 
     def reply(self, text: str) -> str:
         self._push("user", text)
         out = local_info.answer_for(text) or rules.answer(text, self.cat_name)
+        try:
+            import growth
+            out = growth.style(out, self.tone)
+        except Exception:
+            pass
         self._push("assistant", out)
         return out
 

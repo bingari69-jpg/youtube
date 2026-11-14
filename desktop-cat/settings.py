@@ -23,6 +23,7 @@ DEFAULTS = {
     "music_volume": 40,
     "music_shuffle": True,
     "music_last": "",
+    "memo_geometry": None,      # 메모창 위치/크기 [x, y, w, h]
 }
 
 

@@ -66,13 +66,37 @@ EXPRESSION_NAMES_KO = {
 }
 
 
-def build_grid(expression: str = "normal", legs: str = "stand") -> list[str]:
-    rows = [list(r) for r in _BODY]
+_BODY_BABY = [
+    "................",  # 0
+    "..##........##..",  # 1 작은 귀
+    "..############..",  # 2
+    "..############..",  # 3
+    ".##############.",  # 4
+    ".##############.",  # 5
+    ".##############.",  # 6 팔 돌기 없음
+    ".##pp######pp##.",  # 7
+    "..############..",  # 8
+    "..############..",  # 9
+    "...##########...",  # 10 둥근 아래
+    "....##....##....",  # 11 짧은 다리
+    "................",  # 12
+    "................",  # 13
+]
+
+
+def build_grid(expression: str = "normal", legs: str = "stand", baby: bool = False) -> list[str]:
+    rows = [list(r) for r in (_BODY_BABY if baby else _BODY)]
     left, right = EYES[expression]
     for i in range(3):
         for j in range(3):
             rows[4 + i][4 + j] = left[i][j]
             rows[4 + i][9 + j] = right[i][j]
+    if baby:
+        if legs in ("walk1", "walk2"):
+            rows[11] = list("...##......##..." if legs == "walk1" else ".....##..##.....")
+        elif legs == "sit":
+            rows[11] = list("...###....###...")
+        return ["".join(r) for r in rows]
     leg_rows = LEGS[legs]
     rows[11] = list(leg_rows[0])
     rows[12] = list(leg_rows[1])
@@ -82,12 +106,12 @@ def build_grid(expression: str = "normal", legs: str = "stand") -> list[str]:
 _cache: dict[tuple, QPixmap] = {}
 
 
-def pixmap(expression: str, legs: str, scale: int, flip: bool = False) -> QPixmap:
+def pixmap(expression: str, legs: str, scale: int, flip: bool = False, baby: bool = False) -> QPixmap:
     """격자를 QPixmap으로 변환한다. 같은 조합은 캐시한다."""
-    key = (expression, legs, scale, flip)
+    key = (expression, legs, scale, flip, baby)
     if key in _cache:
         return _cache[key]
-    grid = build_grid(expression, legs)
+    grid = build_grid(expression, legs, baby)
     img = QImage(GRID_W * scale, GRID_H * scale, QImage.Format.Format_ARGB32)
     img.fill(Qt.GlobalColor.transparent)
     painter = QPainter(img)

@@ -46,3 +46,6 @@ desktop-cat/seen_notices.json
 desktop-cat/build/
 desktop-cat/dist/
 desktop-cat/*.spec
+desktop-cat/memo.txt
+desktop-cat/schedule.json
+desktop-cat/growth.json
