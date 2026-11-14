@@ -1,7 +1,7 @@
 """API 키 없이 쓰는 정보 조회.
 
   날씨/미세먼지 : Open-Meteo (비상업 무료. 상업 배포 시 유료 플랜 또는 기상청 API로 교체 권장)
-  환율          : Frankfurter (유럽중앙은행 고시, 무료)
+  환율          : Frankfurter api.frankfurter.dev (유럽중앙은행 고시, 무료)
   뉴스 헤드라인 : Google 뉴스 RSS
   공휴일        : Nager.Date (무료)
 
@@ -54,16 +54,41 @@ def _get(url: str, timeout: float = 8.0) -> dict:
         return json.loads(r.read().decode("utf-8"))
 
 
+# 한국 주요 도시 좌표 (Open-Meteo 지명 검색이 한글 짧은 이름에 약해서 내장)
+KR_CITIES = {
+    "서울": (37.5665, 126.9780), "부산": (35.1796, 129.0756), "대구": (35.8714, 128.6014),
+    "인천": (37.4563, 126.7052), "광주": (35.1595, 126.8526), "대전": (36.3504, 127.3845),
+    "울산": (35.5384, 129.3114), "세종": (36.4800, 127.2890), "수원": (37.2636, 127.0286),
+    "성남": (37.4200, 127.1265), "고양": (37.6584, 126.8320), "용인": (37.2411, 127.1776),
+    "창원": (35.2281, 128.6811), "청주": (36.6424, 127.4890), "전주": (35.8242, 127.1480),
+    "천안": (36.8151, 127.1139), "안산": (37.3219, 126.8309), "안양": (37.3943, 126.9568),
+    "남양주": (37.6360, 127.2165), "화성": (37.1995, 126.8312), "김해": (35.2285, 128.8894),
+    "평택": (36.9921, 127.1129), "포항": (36.0190, 129.3435), "제주": (33.4996, 126.5312),
+    "강릉": (37.7519, 128.8761), "춘천": (37.8813, 127.7298), "원주": (37.3422, 127.9202),
+    "여수": (34.7604, 127.6622), "순천": (34.9507, 127.4872), "목포": (34.8118, 126.3922),
+    "경주": (35.8562, 129.2247), "구미": (36.1195, 128.3446), "진주": (35.1800, 128.1076),
+    "파주": (37.7600, 126.7800), "김포": (37.6153, 126.7156), "의정부": (37.7381, 127.0337),
+    "광명": (37.4786, 126.8644), "부천": (37.5034, 126.7660), "시흥": (37.3800, 126.8029),
+    "서귀포": (33.2541, 126.5600), "속초": (38.2070, 128.5918), "동해": (37.5247, 129.1143),
+}
+
+
 def _geocode(place: str) -> tuple[float, float, str] | None:
-    # "대한민국 서울" 처럼 나라가 앞에 붙어 있으면 마지막 단어(도시)로 찾는다
-    name = place.strip().split()[-1] if place.strip() else "서울"
+    """장소 이름 -> (위도, 경도, 표시 이름). 한국 주요 도시는 내장 표, 그 외는 Open-Meteo 지명 검색."""
+    raw = place.strip() or "서울"
+    name = raw.split()[-1]
     name = re.sub(r"(특별시|광역시|특별자치시|특별자치도|시|도)$", "", name) or name
+    if name in KR_CITIES:
+        lat, lon = KR_CITIES[name]
+        return lat, lon, name
     q = urllib.parse.quote(name)
-    data = _get(f"https://geocoding-api.open-meteo.com/v1/search?name={q}&count=1&language=ko&format=json")
+    data = _get(f"https://geocoding-api.open-meteo.com/v1/search?name={q}&count=10&language=ko&format=json")
     results = data.get("results") or []
     if not results:
         return None
-    r = results[0]
+    # 한국 결과 우선, 그중 인구가 많은 곳. 인구 정보가 없으면 첫 결과.
+    kr = [r for r in results if r.get("country_code") == "KR"] or results
+    r = max(kr, key=lambda x: x.get("population") or 0)
     label = r.get("name") or name
     if r.get("admin1") and r["admin1"] != label:
         label = f"{r['admin1']} {label}"
@@ -164,7 +189,7 @@ def get_rates(text: str = "") -> str | None:
     if hit and now - hit[0] < 3600:
         return hit[1]
     try:
-        d = _get("https://api.frankfurter.app/latest?from=KRW&to=USD,JPY,EUR,CNY")
+        d = _get("https://api.frankfurter.dev/v1/latest?base=KRW&symbols=USD,JPY,EUR,CNY")
         r = d.get("rates", {})
         parts = []
         for code, name, unit in (("USD", "1달러", 1), ("JPY", "100엔", 100), ("EUR", "1유로", 1), ("CNY", "1위안", 1)):
