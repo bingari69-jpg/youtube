@@ -234,7 +234,43 @@ const CONTRACTS = [
     build(L) { L.wall(600, 300); L.bell(1060, 380); L.soft("hay", 1340, 240); L.marker(1060, "딩!", 280); },
   },
   {
-    id: "final", scene: 99, title: "헬기 추락 피날레", dir: "wang", reward: 700, need: 10, W: 2100, t2: 1000, t3: 1350,
+    id: "balloon", scene: 40, title: "생일 파티 대소동", dir: "jenny", reward: 450, need: 10, W: 1800, t2: 780, t3: 980,
+    brief: "생일 파티장에 날아들어서 풍선 4개 이상 터뜨려. 터질 때마다 컷을 바꿀 거야.",
+    objs: [{ t: "풍선 4개 이상 터뜨리기", f: s => s.broken.balloon >= 4 }],
+    build(L) {
+      const pts = [[620, 560], [720, 480], [820, 430], [930, 410], [1040, 440], [1150, 500], [1260, 580], [870, 570], [1010, 610]];
+      const cols = ["#ff5d73", "#ffb23e", "#5ec8ff", "#8be36a", "#c68bff"];
+      pts.forEach((pt, i) => L.balloon(pt[0], pt[1], cols[i % cols.length]));
+      L.soft("hay", 1500, 240);
+      L.marker(930, "펑!", 340);
+    },
+  },
+  {
+    id: "tramp", scene: 52, title: "옥상 탈출", dir: "noh", reward: 480, need: 12, W: 1900, t2: 650, t3: 880,
+    brief: "트램펄린을 밟고 튀어 올라 담장을 넘은 뒤 건초더미에 착지. 그냥 넘어가면 무효야.",
+    objs: [{ t: "트램펄린 밟기", f: s => s.bounces >= 1 }, { t: "담장 너머 건초더미에 착지", end: true, f: s => s.landed === "hay" }],
+    build(L) { L.tramp(640, 200); L.wall(980, 360); L.soft("hay", 1330, 280); L.zone("hay", 1330, 280, 170); L.marker(640, "밟기!", GROUND - 70); },
+  },
+  {
+    id: "car", scene: 58, title: "달리는 오픈카", dir: "wang", reward: 500, need: 14, W: 2400, t2: 620, t3: 850,
+    brief: "발사하는 순간 빨간 전기 오픈카가 출발해. 달리는 차 운전석에 정확히 내려앉아.",
+    objs: [{ t: "달리는 오픈카에 착지", end: true, f: s => s.landed === "car" }],
+    build(L) { L.car(760, 2.6); L.marker(760, "운전석!", GROUND - 150); },
+  },
+  {
+    id: "ring", scene: 64, title: "불타는 서커스", dir: "wang", reward: 540, need: 16, W: 1900, t2: 820, t3: 1060,
+    brief: "불붙은 고리 2개 이상을 통과해서 매트에 착지. 소방차는 대기 중이야.",
+    objs: [{ t: "불 고리 2개 이상 통과", f: s => s.rings >= 2 }, { t: "안전 매트에 착지", end: true, f: s => s.landed === "mat" }],
+    build(L) { L.ring(700, 480, 60); L.ring(960, 460, 60); L.ring(1220, 540, 60); L.soft("mat", 1500, 340); L.zone("mat", 1500, 340, 170); L.marker(960, "통과!", 360); },
+  },
+  {
+    id: "bus", scene: 77, title: "버스 8대 넘기", dir: "choi", reward: 600, need: 18, W: 2300, t2: 520, t3: 760,
+    brief: "오토바이도 없이 사람이 직접 넘는다. 버스 8대를 넘어 건초더미에 착지.",
+    objs: [{ t: "버스를 넘어 건초더미에 착지", end: true, f: s => s.landed === "hay" }],
+    build(L) { for (let i = 0; i < 8; i++) L.bus(560 + i * 125); L.soft("hay", 1700, 300); L.zone("hay", 1700, 300, 170); L.marker(1700, "착지!"); },
+  },
+  {
+    id: "final", scene: 99, title: "헬기 추락 피날레", dir: "wang", reward: 800, need: 21, W: 2100, t2: 1000, t3: 1350,
     brief: "나무상자 2개 이상 부수고 수영장에 풍덩. 이게 예고편 메인 컷이야!",
     objs: [{ t: "나무상자 2개 이상 파괴", f: s => s.broken.crate >= 2 }, { t: "수영장에 입수", end: true, f: s => s.landed === "water" }],
     build(L) {
@@ -252,7 +288,7 @@ const LINES = {
   fail: ["컷! 다시 가자.", "그건 스턴트가 아니라 그냥 사고야.", "대본 읽긴 했어?", "카메라 돌아가는 거 알지? 필름값 비싸."],
   hurt: ["구급차 불러! …근데 그림은 좋았어.", "아이고, 소리 들으니까 내가 다 아프네.", "보험 들어 놨지? 그렇지?"],
 };
-const RANKS = [[0, "동네 대역"], [4, "충무로 신인"], [8, "액션 전문 사무소"], [12, "할리우드 러브콜"], [18, "전설의 대역"]];
+const RANKS = [[0, "동네 대역"], [4, "충무로 신인"], [10, "액션 전문 사무소"], [18, "할리우드 러브콜"], [28, "전설의 대역"]];
 const rankOf = s => RANKS.filter(r => s >= r[0]).pop()[1];
 const pick = a => a[Math.floor(Math.random() * a.length)];
 
@@ -287,6 +323,9 @@ const SFX = {
   bell() { tone(660, 1.8, 0.35, "sine"); tone(1320, 1.2, 0.12, "sine"); tone(1990, 0.8, 0.05, "sine"); },
   thud(v) { tone(80, 0.18, Math.min(0.5, v / 30), "sine", -40); },
   splash() { noise(0.6, 1500, 0.6, "bandpass"); },
+  pop() { noise(0.12, 2500, 0.6, "highpass"); tone(900, 0.08, 0.15, "triangle", -400); },
+  boing() { tone(180, 0.45, 0.35, "sine", 520); },
+  whoosh() { noise(0.5, 700, 0.5, "bandpass"); tone(120, 0.3, 0.15, "sawtooth", 200); },
   cut() { noise(0.06, 4000, 0.6, "highpass"); },
 };
 
@@ -313,7 +352,7 @@ let drag = null, spinInput = 0, keys = {}, previewStart = 0;
 let stats = null, takeNo = 0, slowLeft = 0, particles = [], floaters = [], pendingRemove = [];
 
 function newStats() {
-  return { steps: 0, airborne: true, airSteps: 0, cumAngle: 0, lastAngle: 0, flipsAir: 0, broken: { glass: 0, melon: 0, crate: 0 }, bell: false, injury: 0, landed: null, inWaterSteps: 0, slowSteps: 0, maxX: 0, splashed: false };
+  return { steps: 0, airborne: true, airSteps: 0, cumAngle: 0, lastAngle: 0, flipsAir: 0, broken: { glass: 0, melon: 0, crate: 0, balloon: 0 }, rings: 0, bounces: 0, lastBounce: -99, bell: false, injury: 0, landed: null, inWaterSteps: 0, slowSteps: 0, maxX: 0, splashed: false };
 }
 
 function isRag(b) { return b && b.plugin && b.plugin.rag; }
@@ -332,6 +371,19 @@ function buildLevel(c) {
   L.table = (x, w, h) => { add(kind(Bodies.rectangle(x, GROUND - h + 7, w, 14, { isStatic: true, friction: 0.8 }), "table", { w, h })); };
   L.melon = (x, y) => add(kind(Bodies.circle(x, y, 17, { density: 0.0016, friction: 0.5, restitution: 0.2 }), "melon"));
   L.crate = (x, y, s) => add(kind(Bodies.rectangle(x, y, s, s, { density: 0.0015, friction: 0.7 }), "crate", { s }));
+  L.balloon = (x, y, col) => add(kind(Bodies.circle(x, y, 22, { isStatic: true }), "balloon", { col }));
+  L.ring = (x, y, rr) => { add(kind(Bodies.circle(x, y, rr, { isStatic: true, isSensor: true }), "ring", { r: rr })); L.decor.push({ type: "pole", x, y0: y + rr, y1: GROUND }); };
+  L.tramp = (x, w) => add(kind(Bodies.rectangle(x, GROUND - 30, w, 16, { isStatic: true }), "tramp", { w }));
+  L.bus = x => add(kind(Bodies.rectangle(x, GROUND - 48, 112, 96, { isStatic: true, friction: 0.8 }), "bus"));
+  // generic red electric convertible; three static parts moved together, seat well in the middle
+  L.car = (x, speed) => {
+    const opt = { isStatic: true, friction: 1, restitution: 0 };
+    const chassis = add(kind(Bodies.rectangle(x, GROUND - 32, 250, 34, opt), "car", { chassis: true }));
+    const hood = add(kind(Bodies.rectangle(x + 92, GROUND - 62, 66, 26, opt), "car", { part: true }));
+    const trunk = add(kind(Bodies.rectangle(x - 98, GROUND - 64, 54, 30, opt), "car", { part: true }));
+    L.mover = { parts: [chassis, hood, trunk], speed, max: L.W - 200 };
+    L.zones.push({ k: "car", follow: chassis, dx0: -62, dx1: 58, h: 130 });
+  };
   L.hang = (x, y, s) => { add(kind(Bodies.rectangle(x, y, s, s, { isStatic: true }), "crate", { s })); L.decor.push({ type: "rope", x, y0: 0, y1: y - s / 2 }); };
   L.glass = (x, y, h) => { add(kind(Bodies.rectangle(x, y, 12, h, { isStatic: true }), "glass", { h })); L.decor.push({ type: "post", x, y0: y + h / 2, y1: GROUND }); };
   L.wall = (x, h) => add(kind(Bodies.rectangle(x, GROUND - h / 2, 44, h, { isStatic: true, friction: 0.8 }), "wall", { h }));
@@ -392,9 +444,9 @@ function launch() {
 }
 
 /* ---------- physics callbacks ---------- */
-const BREAK = { glass: 5.5, melon: 4, crate: 7 };
-const LANDING = { ground: 1, hay: 1, mat: 1, table: 1, wall: 1, poolwall: 1 };
-const SOFT = { hay: 0.15, mat: 0.25 };
+const BREAK = { glass: 5.5, melon: 4, crate: 7, balloon: 0.5 };
+const LANDING = { ground: 1, hay: 1, mat: 1, table: 1, wall: 1, poolwall: 1, bus: 1, car: 1 };
+const SOFT = { hay: 0.15, mat: 0.25, car: 0.3 };
 function onCollision(e) {
   if (state !== "fly") return;
   for (const pair of e.pairs) {
@@ -410,6 +462,20 @@ function onCollision(e) {
       const keep = k === "crate" ? 0.95 : 0.9;
       for (const p of rag.parts) Body.setVelocity(p, { x: p.velocity.x * keep, y: p.velocity.y * keep });
       shatter(o, k);
+      continue;
+    }
+    if (k === "ring") {
+      if (r === rag.torso && !o.plugin.passed) { o.plugin.passed = true; stats.rings++; slowLeft = 20; fx("ring", { x: o.position.x, y: o.position.y, r: o.plugin.r }); floater(o.position.x, o.position.y - o.plugin.r - 20, "통과!", "#ffb23e"); }
+      continue;
+    }
+    if (k === "tramp") {
+      pair.isActive = false;
+      if (stats.steps - stats.lastBounce > 15) {
+        const ts = engine.timing.timeScale || 1, vy = Math.max(18 * ts, Math.abs(r.velocity.y) * 1.05);
+        stats.lastBounce = stats.steps; stats.bounces++;
+        for (const p of rag.parts) Body.setVelocity(p, { x: p.velocity.x, y: -vy });
+        fx("sfx", { n: "boing" }); floater(o.position.x, o.position.y - 60, "보잉!", "#4fd18b");
+      }
       continue;
     }
     if (k === "bell") {
@@ -429,6 +495,11 @@ function onCollision(e) {
   }
 }
 function beforeUpdate() {
+  const mv = level.mover;
+  if (mv && state === "fly") {
+    const v = mv.parts[0].position.x < mv.max ? mv.speed * (engine.timing.timeScale || 1) : 0;
+    for (const b of mv.parts) Body.setPosition(b, { x: b.position.x + v, y: b.position.y }, true);
+  }
   if (!rag || state !== "fly") return;
   const t = rag.torso;
   if (spinInput && stats.airborne) {
@@ -453,7 +524,8 @@ function beforeUpdate() {
 
 function shatter(b, k) {
   const { x, y } = b.position;
-  fx("shatter", { k, x, y, h: b.plugin.h || 0 });
+  fx("shatter", { k, x, y, h: b.plugin.h || 0, col: b.plugin.col });
+  if (k === "balloon") floater(x, y - 36, "펑!", b.plugin.col);
   if (k === "glass") slowLeft = 28;
   if (k === "crate") slowLeft = 18;
   if (k === "melon") floater(x, y - 40, "퍽!", "#e8434f");
@@ -469,8 +541,10 @@ function runFx(type, d) {
   else if (type === "smoke") { for (let i = 0; i < 24; i++) spawnParticle(d.x, d.y, d.dx * 6 + (Math.random() - 0.5) * 8, d.dy * 6 + (Math.random() - 0.5) * 8, "#d8d2c4", 6 + Math.random() * 8, 0.6, "smoke"); }
   else if (type === "floater") floaters.push({ x: d.x, y: d.y, text: d.text, col: d.col, life: 1.1 });
   else if (type === "splash") { SFX.splash(); shake = 6; for (let i = 0; i < 40; i++) spawnParticle(d.x, d.y, (Math.random() - 0.5) * 10, -Math.random() * 12, "#8fd3ff", 4 + Math.random() * 5, 0.9, "drop"); }
+  else if (type === "ring") { SFX.whoosh(); for (let i = 0; i < 26; i++) { const a = Math.random() * Math.PI * 2; spawnParticle(d.x + Math.cos(a) * d.r * 0.3, d.y + Math.sin(a) * d.r, (Math.random() - 0.3) * 6, -Math.random() * 5, i % 2 ? "#ffb23e" : "#ff4b3a", 5 + Math.random() * 6, 0.7, "chunk"); } }
   else if (type === "shatter") {
     const { k, x, y } = d;
+    if (k === "balloon") { SFX.pop(); for (let i = 0; i < 16; i++) spawnParticle(x, y, (Math.random() - 0.5) * 9, (Math.random() - 0.6) * 9, d.col || "#ff5d73", 3 + Math.random() * 5, 0.8, "shard"); }
     if (k === "glass") { SFX.glass(); for (let i = 0; i < 30; i++) spawnParticle(x, y + (Math.random() - 0.5) * d.h, (Math.random() - 0.2) * 9, (Math.random() - 0.7) * 8, "rgba(190,235,255,.9)", 4 + Math.random() * 9, 1.2, "shard"); }
     if (k === "melon") { SFX.melon(); for (let i = 0; i < 22; i++) spawnParticle(x, y, (Math.random() - 0.5) * 10, -Math.random() * 9, i % 3 ? "#e8434f" : "#2f7a3a", 4 + Math.random() * 6, 1, "chunk"); }
     if (k === "crate") { SFX.crate(); for (let i = 0; i < 18; i++) spawnParticle(x, y, (Math.random() - 0.5) * 12, -Math.random() * 10, i % 2 ? "#a8743d" : "#7a5228", 6 + Math.random() * 10, 1.3, "plank"); }
@@ -493,7 +567,13 @@ function stepPhysics() {
   pendingRemove.length = 0;
   if (state === "fly") { recordFrame(); trackTake(); }
 }
-function zoneAt(x, y) { for (const z of level.zones) if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) return z.k; return null; }
+function zoneAt(x, y) {
+  for (const z of level.zones) {
+    if (z.follow) { const fx0 = z.follow.position.x; if (x >= fx0 + z.dx0 && x <= fx0 + z.dx1 && y >= GROUND - z.h && y <= GROUND) return z.k; continue; }
+    if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) return z.k;
+  }
+  return null;
+}
 function trackTake() {
   const s = stats, t = rag.torso;
   s.steps++;
@@ -516,7 +596,7 @@ function trackTake() {
 /* ================= scoring ================= */
 function score(c, s) {
   const success = c.objs.every(o => o.f(s));
-  const brokenN = s.broken.glass + s.broken.melon + s.broken.crate;
+  const brokenN = Object.values(s.broken).reduce((a, b) => a + b, 0);
   const air = s.airSteps / 60;
   const parts = [
     ["의뢰 달성", success ? 300 : 0],
@@ -524,6 +604,8 @@ function score(c, s) {
     [`소품 파괴 ${brokenN}개`, brokenN * 60],
     [`체공 ${air.toFixed(1)}초`, Math.round(air * 40)],
     ["종 울림", s.bell ? 150 : 0],
+    [`불 고리 ${s.rings}개`, s.rings * 100],
+    [`트램펄린 ${s.bounces}회`, s.bounces * 80],
     ["리얼한 고통 연기", Math.round(Math.min(150, s.injury))],
   ];
   const total = parts.reduce((a, p) => a + p[1], 0);
@@ -797,6 +879,7 @@ function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRe
 function drawBodies() {
   for (const d of level.decor) {
     if (d.type === "rope") { ctx.strokeStyle = "#8b8fa3"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(d.x, -400); ctx.lineTo(d.x, d.y1); ctx.stroke(); ctx.fillStyle = "#555b6e"; ctx.fillRect(d.x - 8, d.y1 - 10, 16, 10); }
+    if (d.type === "pole") { ctx.fillStyle = "#555b6e"; ctx.fillRect(d.x - 4, d.y0, 8, d.y1 - d.y0); ctx.fillRect(d.x - 24, d.y1 - 8, 48, 8); }
     if (d.type === "post") { ctx.fillStyle = "#555b6e"; ctx.fillRect(d.x - 4, d.y0, 8, d.y1 - d.y0); ctx.fillRect(d.x - 26, d.y1 - 8, 52, 8); }
     if (d.type === "tower") {
       ctx.strokeStyle = "#6b5a48"; ctx.lineWidth = 10;
@@ -845,6 +928,36 @@ function drawBodies() {
     } else if (k === "poolwall") {
       const h = b.plugin.h; ctx.fillStyle = "#cfd8e3"; ctx.fillRect(-12, -h / 2, 24, h);
       ctx.strokeStyle = "#9fb0c4"; ctx.lineWidth = 2; for (let y = -h / 2 + 20; y < h / 2; y += 20) { ctx.beginPath(); ctx.moveTo(-12, y); ctx.lineTo(12, y); ctx.stroke(); }
+    } else if (k === "balloon") {
+      ctx.strokeStyle = "rgba(235,230,218,.5)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, 24); ctx.quadraticCurveTo(6, 55, 0, 90); ctx.stroke();
+      ctx.fillStyle = b.plugin.col; ctx.beginPath(); ctx.ellipse(0, 0, 20, 24, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-4, 26); ctx.lineTo(4, 26); ctx.lineTo(0, 21); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,.45)"; ctx.beginPath(); ctx.ellipse(-7, -9, 5, 8, -0.4, 0, Math.PI * 2); ctx.fill();
+    } else if (k === "ring") {
+      const rr = b.plugin.r, fl = performance.now() / 90;
+      ctx.lineWidth = 10; ctx.strokeStyle = "#6b5a48"; ctx.beginPath(); ctx.ellipse(0, 0, 16, rr, 0, 0, Math.PI * 2); ctx.stroke();
+      for (let i = 0; i < 18; i++) {
+        const a = i / 18 * Math.PI * 2, fx0 = Math.cos(a) * 16, fy0 = Math.sin(a) * rr, h = 10 + Math.sin(fl + i * 1.7) * 5;
+        ctx.fillStyle = i % 2 ? "#ffb23e" : "#ff6a2a"; ctx.beginPath(); ctx.ellipse(fx0, fy0 - h / 2, 5, h, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    } else if (k === "tramp") {
+      const w = b.plugin.w; ctx.fillStyle = "#555b6e"; ctx.fillRect(-w / 2, 6, 8, 22); ctx.fillRect(w / 2 - 8, 6, 8, 22);
+      ctx.fillStyle = "#1f2433"; ctx.fillRect(-w / 2, -8, w, 16); ctx.fillStyle = "#4fd18b"; ctx.fillRect(-w / 2, -8, w, 4);
+    } else if (k === "bus") {
+      ctx.fillStyle = "#e8b923"; roundRect(-56, -48, 112, 82, 8); ctx.fill();
+      ctx.fillStyle = "#2b3346"; for (let i = 0; i < 3; i++) ctx.fillRect(-48 + i * 34, -38, 26, 22);
+      ctx.fillStyle = "#11131b"; for (const wx of [-34, 34]) { ctx.beginPath(); ctx.arc(wx, 36, 12, 0, Math.PI * 2); ctx.fill(); }
+    } else if (k === "car" && b.plugin.chassis) {
+      // red electric convertible (no real-world branding)
+      ctx.fillStyle = "#d92b2b";
+      ctx.beginPath(); ctx.moveTo(-125, 10); ctx.lineTo(-125, -44); ctx.quadraticCurveTo(-120, -48, -70, -48); ctx.lineTo(-62, -17); ctx.lineTo(58, -17);
+      ctx.lineTo(70, -40); ctx.quadraticCurveTo(110, -46, 125, -20); ctx.lineTo(125, 10); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#3a1414"; ctx.fillRect(-56, -17, 108, 8);
+      ctx.fillStyle = "#11131b"; ctx.fillRect(-40, -38, 10, 21);
+      ctx.strokeStyle = "rgba(170,225,255,.8)"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(58, -17); ctx.lineTo(44, -50); ctx.stroke();
+      ctx.fillStyle = "#ffe9a8"; ctx.fillRect(116, -30, 8, 8);
+      ctx.fillStyle = "#11131b"; for (const wx of [-82, 82]) { ctx.beginPath(); ctx.arc(wx, 14, 17, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#9aa0b4"; ctx.beginPath(); ctx.arc(wx, 14, 7, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#11131b"; }
+      if (state === "fly" && level.mover && level.mover.parts[0].position.x < level.mover.max) for (let i = 0; i < 2; i++) spawnParticle(b.position.x - 130, b.position.y + 10, -2 - Math.random() * 2, -Math.random(), "rgba(200,200,210,.5)", 3 + Math.random() * 3, 0.4, "smoke");
     } else if (k === "bell") {
       const swing = (state === "replay" ? replay.rf >= recording.bellStep && recording.bellStep >= 0 : stats && stats.bell) ? Math.sin(performance.now() / 120) * 0.35 : 0;
       ctx.rotate(swing);
@@ -979,7 +1092,7 @@ function recordFrame() {
   for (let i = 0; i < t.length; i++) { const b = t[i]; f[i * 4] = b.plugin.removed ? 0 : 1; f[i * 4 + 1] = b.position.x; f[i * 4 + 2] = b.position.y; f[i * 4 + 3] = b.angle; }
   recording.frames.push(f);
 }
-const KEY_FX = { shatter: 1, splash: 1 };
+const KEY_FX = { shatter: 1, splash: 1, ring: 1 };
 function startReplay() {
   if (!recording || recording.frames.length < 2 || state !== "result") return;
   // drop the tail where the stuntman just lies still
@@ -987,7 +1100,8 @@ function startReplay() {
   // slow down around the money shots: breaks, splash, bell, big hits
   const slow = new Uint8Array(last + 1);
   const mark = s => { for (let i = Math.max(0, s - 8); i <= Math.min(last, s + 22); i++) slow[i] = 1; };
-  for (const e of recording.events) if (KEY_FX[e.type] || (e.type === "sfx" && e.d.n === "bell")) mark(e.step);
+  for (const e of recording.events) if (KEY_FX[e.type] || (e.type === "sfx" && (e.d.n === "bell" || e.d.n === "boing"))) mark(e.step);
+  if (contract.id === "car" && stats && stats.landed === "car") mark(Math.max(0, last - 40));
   replay = { rf: 0, ei: 0, last, slow, zoom: 1, hold: 0, speed: 1, events: recording.events.slice().sort((a, b) => a.step - b.step) };
   particles = []; floaters = []; shake = 0;
   state = "replay";
