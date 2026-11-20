@@ -263,7 +263,13 @@ const CONTRACTS = [
     build(L) { L.wall(520, 250); L.breakwall(1050, 380); L.soft("hay", 1330, 260); L.marker(1080, "살살!", GROUND - 300); },
   },
   {
-    id: "roadster", scene: 58, title: "로켓 로드스터", dir: "jenny", reward: 520, need: 16, W: 2000, t2: 700, t3: 880, projectile: "car",
+    id: "airbag", scene: 57, title: "앵글 밖 에어백", dir: "jenny", reward: 520, need: 16, W: 1900, t2: 560, t3: 700,
+    brief: "떨어지는 모습은 카메라 프레임 안에 담기고, 착지는 프레임 바로 밖 작은 에어백에. 에어백이 화면에 걸리면 CG팀이 운다.",
+    objs: [{ t: "카메라 프레임 안을 지나가기", f: s => s.inFrame }, { t: "프레임 밖 에어백에 착지", end: true, f: s => s.landed === "airbag" }],
+    build(L) { L.frame(880, 230, 360, 470); L.soft("airbag", 1330, 130); L.zone("airbag", 1330, 130, 170); L.marker(1330, "숨은 에어백", GROUND - 90); },
+  },
+  {
+    id: "roadster", scene: 58, title: "로켓 로드스터", dir: "jenny", reward: 520, need: 18, W: 2000, t2: 700, t3: 880, projectile: "car",
     brief: "이번엔 사람이 아니라 추진기 달린 전기 스포츠카를 쏜다. 가스는 5초분. 옥상 착지대에 바퀴부터 사뿐히 내려놔.",
     objs: [
       { t: "옥상 착지대에 착지", end: true, f: s => s.landed === "pad" },
@@ -273,31 +279,41 @@ const CONTRACTS = [
     build(L) { L.roof(1450, 300, 230); L.marker(1450, "착지대", GROUND - 300); },
   },
   {
-    id: "burn", scene: 61, title: "불붙은 채로 2초", dir: "jenny", reward: 540, need: 18, W: 1800, t2: 700, t3: 860, action: "burn",
+    id: "burn", scene: 61, title: "불붙은 채로 2초", dir: "jenny", reward: 540, need: 20, W: 1800, t2: 700, t3: 860, action: "burn",
     brief: "발사 순간 전신에 불을 붙인다. 2초 안에 담장 너머 물탱크에 뛰어들어 불을 꺼. 오래 탈수록 그림은 좋지만, 시간 넘기면 화상이야.",
     objs: [{ t: "제한 시간 안에 물탱크로 소화", f: s => s.extinguished }],
     build(L) { L.wall(980, 330); L.pool(1250, 320, 100); L.marker(1260, "소화!", GROUND - 200); },
   },
   {
-    id: "ring", scene: 64, title: "불타는 서커스", dir: "wang", reward: 540, need: 20, W: 1900, t2: 820, t3: 1060,
+    id: "ring", scene: 64, title: "불타는 서커스", dir: "wang", reward: 540, need: 22, W: 1900, t2: 820, t3: 1060,
     brief: "불붙은 고리 2개 이상을 통과해서 매트에 착지. 소방차는 대기 중이야.",
     objs: [{ t: "불 고리 2개 이상 통과", f: s => s.rings >= 2 }, { t: "안전 매트에 착지", end: true, f: s => s.landed === "mat" }],
     build(L) { L.ring(700, 480, 60); L.ring(960, 460, 60); L.ring(1220, 540, 60); L.soft("mat", 1500, 340); L.zone("mat", 1500, 340, 170); L.marker(960, "통과!", 360); },
   },
   {
-    id: "cannonroll", scene: 70, title: "캐논 롤 5회전", dir: "choi", reward: 620, need: 22, W: 2600, t2: 800, t3: 1000, projectile: "car", noFuel: true, rollTarget: 5,
+    id: "corkscrew", scene: 68, title: "코르크스크루 점프", dir: "noh", reward: 600, need: 24, W: 2000, t2: 620, t3: 780, projectile: "car", noFuel: true,
+    brief: "차가 공중에서 딱 한 바퀴 돌고 맞은편 착지 램프에 바퀴부터 내려앉는다. 반 바퀴도, 두 바퀴도 안 돼. (← → 로 회전)",
+    objs: [
+      { t: "공중에서 정확히 1회전", f: s => s.flipsAir === 1 },
+      { t: "착지 램프에 바퀴부터 닿기", f: s => s.touchAligned },
+      { t: "램프 위에서 멈추기", end: true, f: s => s.landed === "ramp" },
+    ],
+    build(L) { L.ramp(1400, 520, 0.3); L.marker(1300, "바퀴부터!", GROUND - 240); },
+  },
+  {
+    id: "cannonroll", scene: 70, title: "캐논 롤 5회전", dir: "choi", reward: 620, need: 26, W: 2600, t2: 800, t3: 1000, projectile: "car", noFuel: true, rollTarget: 5,
     brief: "차를 쏘고 공중과 바닥에서 정확히 5바퀴 굴린 다음 바퀴로 서야 해. 더도 덜도 말고 5바퀴. (← → 로 회전) 소문으로는 8바퀴가 세계 기록이라던데…",
     objs: [{ t: "정확히 5회전", end: true, f: s => s.rolls === 5 }, { t: "바퀴로 서서 멈추기", end: true, f: s => s.upright }],
     build(L) { L.marker(1100, "5회전!", GROUND - 120); },
   },
   {
-    id: "bus", scene: 77, title: "버스 8대 넘기", dir: "choi", reward: 600, need: 24, W: 2300, t2: 520, t3: 760,
+    id: "bus", scene: 77, title: "버스 8대 넘기", dir: "choi", reward: 600, need: 28, W: 2300, t2: 520, t3: 760,
     brief: "오토바이도 없이 사람이 직접 넘는다. 버스 8대를 넘어 건초더미에 착지.",
     objs: [{ t: "버스를 넘어 건초더미에 착지", end: true, f: s => s.landed === "hay" }],
     build(L) { for (let i = 0; i < 8; i++) L.bus(560 + i * 125); L.soft("hay", 1700, 300); L.zone("hay", 1700, 300, 170); L.marker(1700, "착지!"); },
   },
   {
-    id: "final", scene: 99, title: "헬기 추락 피날레", dir: "wang", reward: 800, need: 27, W: 2100, t2: 1000, t3: 1350,
+    id: "final", scene: 99, title: "헬기 추락 피날레", dir: "wang", reward: 800, need: 31, W: 2100, t2: 1000, t3: 1350,
     brief: "나무상자 2개 이상 부수고 수영장에 풍덩. 이게 예고편 메인 컷이야!",
     objs: [{ t: "나무상자 2개 이상 파괴", f: s => s.broken.crate >= 2 }, { t: "수영장에 입수", end: true, f: s => s.landed === "water" }],
     build(L) {
@@ -315,7 +331,7 @@ const LINES = {
   fail: ["컷! 다시 가자.", "그건 스턴트가 아니라 그냥 사고야.", "대본 읽긴 했어?", "카메라 돌아가는 거 알지? 필름값 비싸."],
   hurt: ["구급차 불러! …근데 그림은 좋았어.", "아이고, 소리 들으니까 내가 다 아프네.", "보험 들어 놨지? 그렇지?"],
 };
-const RANKS = [[0, "동네 대역"], [4, "충무로 신인"], [12, "액션 전문 사무소"], [24, "할리우드 러브콜"], [36, "전설의 대역"]];
+const RANKS = [[0, "동네 대역"], [4, "충무로 신인"], [14, "액션 전문 사무소"], [28, "할리우드 러브콜"], [42, "전설의 대역"]];
 const rankOf = s => RANKS.filter(r => s >= r[0]).pop()[1];
 const pick = a => a[Math.floor(Math.random() * a.length)];
 
@@ -382,7 +398,7 @@ let drag = null, spinInput = 0, thrustInput = false, keys = {}, previewStart = 0
 let stats = null, takeNo = 0, slowLeft = 0, particles = [], floaters = [], pendingRemove = [];
 
 function newStats() {
-  return { steps: 0, airborne: true, airSteps: 0, cumAngle: 0, lastAngle: 0, flipsAir: 0, broken: { glass: 0, melon: 0, crate: 0, balloon: 0 }, rings: 0, bounces: 0, lastBounce: -99, fuel: 0, ratcheted: false, wallHit: null, wallSpeed: 0, burning: false, burnLeft: 0, extinguished: false, burnSteps: 0, cumAll: 0, rolls: 0, touched: false, touchStep: -1, maxImpact: 0, upright: false, bell: false, injury: 0, landed: null, inWaterSteps: 0, slowSteps: 0, maxX: 0, splashed: false };
+  return { steps: 0, airborne: true, airSteps: 0, cumAngle: 0, lastAngle: 0, flipsAir: 0, broken: { glass: 0, melon: 0, crate: 0, balloon: 0 }, rings: 0, bounces: 0, lastBounce: -99, fuel: 0, ratcheted: false, wallHit: null, wallSpeed: 0, burning: false, burnLeft: 0, extinguished: false, burnSteps: 0, cumAll: 0, rolls: 0, inFrame: false, frameSteps: 0, touchAligned: false, touched: false, touchStep: -1, maxImpact: 0, upright: false, bell: false, injury: 0, landed: null, inWaterSteps: 0, slowSteps: 0, maxX: 0, splashed: false };
 }
 
 function isRag(b) { return b && b.plugin && b.plugin.rag; }
@@ -404,6 +420,16 @@ function buildLevel(c) {
   L.balloon = (x, y, col) => add(kind(Bodies.circle(x, y, 22, { isStatic: true }), "balloon", { col }));
   L.ring = (x, y, rr) => { add(kind(Bodies.circle(x, y, rr, { isStatic: true, isSensor: true }), "ring", { r: rr })); L.decor.push({ type: "pole", x, y0: y + rr, y1: GROUND }); };
   L.tramp = (x, w) => add(kind(Bodies.rectangle(x, GROUND - 30, w, 16, { isStatic: true }), "tramp", { w }));
+  // camera frame: the stuntman must pass through it; drawn as a viewfinder
+  L.frame = (x, y, w, h) => { L.frameRect = { x0: x - w / 2, x1: x + w / 2, y0: y, y1: y + h }; };
+  // angled landing ramp (positive angle slopes down to the right)
+  L.ramp = (x, len, ang) => {
+    const cy = GROUND - 30 - Math.sin(ang) * len / 2;
+    add(kind(Bodies.rectangle(x, cy, len, 24, { isStatic: true, angle: ang, friction: 1, restitution: 0 }), "ramp", { len }));
+    const hx = Math.cos(ang) * len / 2, hy = Math.sin(ang) * len / 2;
+    L.decor.push({ type: "post", x: x - hx + 20, y0: cy - hy + 14, y1: GROUND }, { type: "post", x: x, y0: cy + 12, y1: GROUND });
+    L.zones.push({ k: "ramp", x0: x - hx, x1: x + hx + 60, y0: cy - hy - 160, y1: GROUND + 5 });
+  };
   L.breakwall = (x, h) => add(kind(Bodies.rectangle(x, GROUND - h / 2, 30, h, { isStatic: true }), "breakwall", { h }));
   L.bus = x => add(kind(Bodies.rectangle(x, GROUND - 48, 112, 96, { isStatic: true, friction: 0.8 }), "bus"));
   // rooftop landing pad: building of height h, pad zone on its roof
@@ -475,8 +501,8 @@ function launch() {
 
 /* ---------- physics callbacks ---------- */
 const BREAK = { glass: 5.5, melon: 4, crate: 7, balloon: 0.5 };
-const LANDING = { ground: 1, hay: 1, mat: 1, table: 1, wall: 1, poolwall: 1, bus: 1, roof: 1 };
-const SOFT = { hay: 0.15, mat: 0.25 };
+const LANDING = { ground: 1, hay: 1, mat: 1, table: 1, wall: 1, poolwall: 1, bus: 1, roof: 1, ramp: 1, airbag: 1 };
+const SOFT = { hay: 0.15, mat: 0.25, airbag: 0.1 };
 function onCollision(e) {
   if (state !== "fly") return;
   for (const pair of e.pairs) {
@@ -527,7 +553,10 @@ function onCollision(e) {
       continue;
     }
     if (rag.car && LANDING[k]) {
-      if (!stats.touched) { stats.touched = true; stats.touchStep = recording ? recording.frames.length : 0; }
+      if (!stats.touched) {
+        stats.touched = true; stats.touchStep = recording ? recording.frames.length : 0;
+        if (k === "ramp") { const d = ((r.angle - o.angle) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI; stats.touchAligned = Math.abs(d) < 0.6; }
+      }
       stats.maxImpact = Math.max(stats.maxImpact, rel);
       if (rel > 9) { fx("sfx", { n: "crate" }); floater(r.position.x, r.position.y - 50, "쾅!", "#ff4b3a"); shake = Math.max(shake, 12); }
       else if (rel > 0.5 && stats.airborne) floater(r.position.x, r.position.y - 50, rel <= 6 ? "사뿐!" : "덜컹!", rel <= 6 ? "#4fd18b" : "#ffb23e");
@@ -610,8 +639,9 @@ function carControl(t) {
       if (spinInput) av += spinInput * 0.014 * ts;
       Body.setAngularVelocity(t, Math.max(-0.26, Math.min(0.26, av)));
     } else {
-      av = spinInput ? av + spinInput * 0.0045 * ts : av * 0.96;
-      Body.setAngularVelocity(t, Math.max(-0.09, Math.min(0.09, av)));
+      const acc = contract.id === "corkscrew" ? 0.007 : 0.0045, cap = contract.id === "corkscrew" ? 0.12 : 0.09;
+      av = spinInput ? av + spinInput * acc * ts : av * 0.96;
+      Body.setAngularVelocity(t, Math.max(-cap, Math.min(cap, av)));
     }
   }
 }
@@ -675,6 +705,8 @@ function trackTake() {
     s.cumAngle += t.angle - s.lastAngle;
     s.flipsAir = Math.floor(Math.abs(s.cumAngle) / (Math.PI * 2) + 0.08);
   }
+  const F = level.frameRect;
+  if (F && s.airborne && t.position.x > F.x0 && t.position.x < F.x1 && t.position.y > F.y0 && t.position.y < F.y1) { s.inFrame = true; s.frameSteps++; }
   s.cumAll += t.angle - s.lastAngle;
   s.rolls = Math.floor(Math.abs(s.cumAll) / (Math.PI * 2) + 0.08);
   s.lastAngle = t.angle;
@@ -707,6 +739,7 @@ function score(c, s) {
     ["사뿐한 착지", c.projectile === "car" && !c.rollTarget && success ? Math.round(Math.max(0, 6 - s.maxImpact) * 50) : 0],
     [`캐논 롤 ${s.rolls}회전`, c.rollTarget ? s.rolls * 60 : 0],
     ["세계 기록급 롤(8회+)", c.rollTarget && s.rolls >= 8 ? 500 : 0],
+    ["프레임 안 체공", c.id === "airbag" && success ? Math.round(s.frameSteps / 60 * 150) : 0],
     ["정확한 감속", c.action === "ratchet" && s.wallHit === "good" ? Math.round(Math.max(0, 5 - Math.abs(s.wallSpeed - 8.5)) * 40) : 0],
     [`불붙은 채 ${(s.burnSteps / 60).toFixed(1)}초`, c.action === "burn" && s.extinguished ? Math.round(s.burnSteps / 60 * 120) : 0],
   ];
@@ -752,6 +785,10 @@ function updateHud() {
       ? `회전 ${s.rolls} / 목표 ${contract.rollTarget} · 충격 ${s.maxImpact.toFixed(1)}`
       : contract.action === "burn"
       ? (s.extinguished ? "불 꺼짐 · 소화 성공" : s.burning ? `불 꺼지기까지 ${Math.max(0, s.burnLeft / 60).toFixed(1)}초` : stats ? "화상! 시간 초과" : "발사하면 불이 붙습니다")
+      : contract.id === "airbag"
+      ? `프레임 ${s.inFrame ? "통과" : "아직"} · 프레임 안 ${(s.frameSteps / 60).toFixed(1)}초`
+      : contract.id === "corkscrew"
+      ? `공중 회전 ${s.flipsAir} / 목표 1 · 충격 ${s.maxImpact.toFixed(1)}`
       : contract.action === "ratchet"
       ? `래칫 ${s.ratcheted ? "사용함" : "대기"} · 벽 충돌 ${s.wallSpeed ? s.wallSpeed.toFixed(1) : "-"} (적정 5~12)`
       : rag && rag.car
@@ -770,6 +807,8 @@ function updateHud() {
     ? (coarse ? "화면을 뒤로 끌었다 놓으면 발사" : "드래그로 조준 후 놓으면 발사 · ↑↓ 각도 · ←→ 힘 · Space 발사")
     : contract.rollTarget
       ? (coarse ? "⟲ ⟳ 로 차를 굴리기 · 정확히 5바퀴" : "← → 로 차를 굴리기 · 정확히 5바퀴")
+      : contract.id === "corkscrew"
+      ? (coarse ? "⟲ ⟳ 로 한 바퀴 돌리고 램프에 맞춰 착지" : "← → 로 한 바퀴 돌리고 램프 기울기에 맞춰 착지")
       : contract.action === "ratchet"
       ? (coarse ? "래칫 버튼으로 한 번 케이블 당기기" : "Space / ↓ 로 한 번 케이블 당기기 · ← → 회전")
       : contract.action === "burn"
@@ -1076,6 +1115,13 @@ function drawBodies() {
         const a = i / 18 * Math.PI * 2, fx0 = Math.cos(a) * 16, fy0 = Math.sin(a) * rr, h = 10 + Math.sin(fl + i * 1.7) * 5;
         ctx.fillStyle = i % 2 ? "#ffb23e" : "#ff6a2a"; ctx.beginPath(); ctx.ellipse(fx0, fy0 - h / 2, 5, h, 0, 0, Math.PI * 2); ctx.fill();
       }
+    } else if (k === "ramp") {
+      const len = b.plugin.len; ctx.fillStyle = "#6b7184"; ctx.fillRect(-len / 2, -12, len, 24);
+      ctx.fillStyle = "#ffb23e"; for (let x = -len / 2; x < len / 2; x += 40) ctx.fillRect(x, -12, 20, 5);
+    } else if (k === "airbag") {
+      const w = b.plugin.w; ctx.fillStyle = "#8fa3c8"; roundRect(-w / 2, -22, w, 44, 18); ctx.fill();
+      ctx.strokeStyle = "#5d6f94"; ctx.lineWidth = 2; for (let x = -w / 2 + 22; x < w / 2; x += 22) { ctx.beginPath(); ctx.moveTo(x, -20); ctx.lineTo(x, 20); ctx.stroke(); }
+      ctx.fillStyle = "#11131b"; ctx.font = "700 14px 'IBM Plex Mono', monospace"; ctx.textAlign = "center"; ctx.fillText("AIR", 0, 5);
     } else if (k === "breakwall") {
       const h = b.plugin.h; ctx.fillStyle = "#c9b48a"; ctx.fillRect(-15, -h / 2, 30, h);
       ctx.strokeStyle = "#8a7656"; ctx.lineWidth = 2; for (let y = -h / 2 + 24; y < h / 2; y += 24) { ctx.beginPath(); ctx.moveTo(-15, y); ctx.lineTo(15, y); ctx.stroke(); }
@@ -1101,6 +1147,21 @@ function drawBodies() {
       ctx.fillStyle = "#9c7414"; ctx.beginPath(); ctx.arc(0, 28, 7, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
+  }
+  // camera viewfinder for the hidden-airbag contract
+  const F = level.frameRect;
+  if (F) {
+    const hit = state === "replay" ? false : stats && stats.inFrame;
+    ctx.strokeStyle = hit ? "#4fd18b" : "rgba(235,230,218,.8)"; ctx.lineWidth = 4;
+    const c = 40;
+    for (const [x, y, dx, dy] of [[F.x0, F.y0, 1, 1], [F.x1, F.y0, -1, 1], [F.x0, F.y1, 1, -1], [F.x1, F.y1, -1, -1]]) { ctx.beginPath(); ctx.moveTo(x + dx * c, y); ctx.lineTo(x, y); ctx.lineTo(x, y + dy * c); ctx.stroke(); }
+    ctx.setLineDash([10, 8]); ctx.lineWidth = 1.5; ctx.strokeRect(F.x0, F.y0, F.x1 - F.x0, F.y1 - F.y0); ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(235,230,218,.8)"; ctx.font = "600 16px 'IBM Plex Mono', monospace"; ctx.textAlign = "left"; ctx.fillText("CAM A · FRAME", F.x0 + 8, F.y0 + 22);
+    // camera on tripod, looking at the frame
+    const cx = (F.x0 + F.x1) / 2, cy = F.y1 + 60;
+    ctx.strokeStyle = "rgba(235,230,218,.18)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(F.x0, F.y1); ctx.moveTo(cx, cy); ctx.lineTo(F.x1, F.y1); ctx.stroke();
+    ctx.fillStyle = "#2e3344"; ctx.fillRect(cx - 22, cy - 14, 44, 28); ctx.fillStyle = "#11131b"; ctx.beginPath(); ctx.arc(cx, cy - 14, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#555b6e"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(cx, cy + 14); ctx.lineTo(cx - 30, GROUND); ctx.moveTo(cx, cy + 14); ctx.lineTo(cx + 30, GROUND); ctx.stroke();
   }
   // markers
   const bob = Math.sin(performance.now() / 300) * 5;
