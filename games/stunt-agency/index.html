@@ -257,7 +257,13 @@ const CONTRACTS = [
     build(L) { L.tramp(640, 200); L.wall(980, 360); L.soft("hay", 1330, 280); L.zone("hay", 1330, 280, 170); L.marker(640, "밟기!", GROUND - 70); },
   },
   {
-    id: "roadster", scene: 58, title: "로켓 로드스터", dir: "jenny", reward: 520, need: 14, W: 2000, t2: 700, t3: 880, projectile: "car",
+    id: "ratchet", scene: 55, title: "래칫 백드래프트", dir: "noh", reward: 500, need: 14, W: 1900, t2: 560, t3: 720, action: "ratchet",
+    brief: "담장은 세게 넘고, 그다음 소품 벽은 살살 뚫어. 비행 중에 딱 한 번 케이블을 당겨 속도를 죽여. (Space / ↓ / 래칫 버튼)",
+    objs: [{ t: "래칫으로 속도 줄이기", f: s => s.ratcheted }, { t: "소품 벽을 적정 세기(5~12)로 돌파", f: s => s.wallHit === "good" }],
+    build(L) { L.wall(520, 250); L.breakwall(1050, 380); L.soft("hay", 1330, 260); L.marker(1080, "살살!", GROUND - 300); },
+  },
+  {
+    id: "roadster", scene: 58, title: "로켓 로드스터", dir: "jenny", reward: 520, need: 16, W: 2000, t2: 700, t3: 880, projectile: "car",
     brief: "이번엔 사람이 아니라 추진기 달린 전기 스포츠카를 쏜다. 가스는 5초분. 옥상 착지대에 바퀴부터 사뿐히 내려놔.",
     objs: [
       { t: "옥상 착지대에 착지", end: true, f: s => s.landed === "pad" },
@@ -267,19 +273,31 @@ const CONTRACTS = [
     build(L) { L.roof(1450, 300, 230); L.marker(1450, "착지대", GROUND - 300); },
   },
   {
-    id: "ring", scene: 64, title: "불타는 서커스", dir: "wang", reward: 540, need: 16, W: 1900, t2: 820, t3: 1060,
+    id: "burn", scene: 61, title: "불붙은 채로 2초", dir: "jenny", reward: 540, need: 18, W: 1800, t2: 700, t3: 860, action: "burn",
+    brief: "발사 순간 전신에 불을 붙인다. 2초 안에 담장 너머 물탱크에 뛰어들어 불을 꺼. 오래 탈수록 그림은 좋지만, 시간 넘기면 화상이야.",
+    objs: [{ t: "제한 시간 안에 물탱크로 소화", f: s => s.extinguished }],
+    build(L) { L.wall(980, 330); L.pool(1250, 320, 100); L.marker(1260, "소화!", GROUND - 200); },
+  },
+  {
+    id: "ring", scene: 64, title: "불타는 서커스", dir: "wang", reward: 540, need: 20, W: 1900, t2: 820, t3: 1060,
     brief: "불붙은 고리 2개 이상을 통과해서 매트에 착지. 소방차는 대기 중이야.",
     objs: [{ t: "불 고리 2개 이상 통과", f: s => s.rings >= 2 }, { t: "안전 매트에 착지", end: true, f: s => s.landed === "mat" }],
     build(L) { L.ring(700, 480, 60); L.ring(960, 460, 60); L.ring(1220, 540, 60); L.soft("mat", 1500, 340); L.zone("mat", 1500, 340, 170); L.marker(960, "통과!", 360); },
   },
   {
-    id: "bus", scene: 77, title: "버스 8대 넘기", dir: "choi", reward: 600, need: 18, W: 2300, t2: 520, t3: 760,
+    id: "cannonroll", scene: 70, title: "캐논 롤 5회전", dir: "choi", reward: 620, need: 22, W: 2600, t2: 800, t3: 1000, projectile: "car", noFuel: true, rollTarget: 5,
+    brief: "차를 쏘고 공중과 바닥에서 정확히 5바퀴 굴린 다음 바퀴로 서야 해. 더도 덜도 말고 5바퀴. (← → 로 회전) 소문으로는 8바퀴가 세계 기록이라던데…",
+    objs: [{ t: "정확히 5회전", end: true, f: s => s.rolls === 5 }, { t: "바퀴로 서서 멈추기", end: true, f: s => s.upright }],
+    build(L) { L.marker(1100, "5회전!", GROUND - 120); },
+  },
+  {
+    id: "bus", scene: 77, title: "버스 8대 넘기", dir: "choi", reward: 600, need: 24, W: 2300, t2: 520, t3: 760,
     brief: "오토바이도 없이 사람이 직접 넘는다. 버스 8대를 넘어 건초더미에 착지.",
     objs: [{ t: "버스를 넘어 건초더미에 착지", end: true, f: s => s.landed === "hay" }],
     build(L) { for (let i = 0; i < 8; i++) L.bus(560 + i * 125); L.soft("hay", 1700, 300); L.zone("hay", 1700, 300, 170); L.marker(1700, "착지!"); },
   },
   {
-    id: "final", scene: 99, title: "헬기 추락 피날레", dir: "wang", reward: 800, need: 21, W: 2100, t2: 1000, t3: 1350,
+    id: "final", scene: 99, title: "헬기 추락 피날레", dir: "wang", reward: 800, need: 27, W: 2100, t2: 1000, t3: 1350,
     brief: "나무상자 2개 이상 부수고 수영장에 풍덩. 이게 예고편 메인 컷이야!",
     objs: [{ t: "나무상자 2개 이상 파괴", f: s => s.broken.crate >= 2 }, { t: "수영장에 입수", end: true, f: s => s.landed === "water" }],
     build(L) {
@@ -297,7 +315,7 @@ const LINES = {
   fail: ["컷! 다시 가자.", "그건 스턴트가 아니라 그냥 사고야.", "대본 읽긴 했어?", "카메라 돌아가는 거 알지? 필름값 비싸."],
   hurt: ["구급차 불러! …근데 그림은 좋았어.", "아이고, 소리 들으니까 내가 다 아프네.", "보험 들어 놨지? 그렇지?"],
 };
-const RANKS = [[0, "동네 대역"], [4, "충무로 신인"], [10, "액션 전문 사무소"], [18, "할리우드 러브콜"], [28, "전설의 대역"]];
+const RANKS = [[0, "동네 대역"], [4, "충무로 신인"], [12, "액션 전문 사무소"], [24, "할리우드 러브콜"], [36, "전설의 대역"]];
 const rankOf = s => RANKS.filter(r => s >= r[0]).pop()[1];
 const pick = a => a[Math.floor(Math.random() * a.length)];
 
@@ -335,6 +353,8 @@ const SFX = {
   pop() { noise(0.12, 2500, 0.6, "highpass"); tone(900, 0.08, 0.15, "triangle", -400); },
   boing() { tone(180, 0.45, 0.35, "sine", 520); },
   hiss() { noise(0.14, 3500, 0.18, "highpass"); },
+  ratchet() { noise(0.08, 5000, 0.5, "highpass"); tone(300, 0.25, 0.3, "square", -220); },
+  ignite() { noise(0.9, 400, 0.6, "lowpass"); tone(70, 0.6, 0.3, "sawtooth", 40); },
   whoosh() { noise(0.5, 700, 0.5, "bandpass"); tone(120, 0.3, 0.15, "sawtooth", 200); },
   cut() { noise(0.06, 4000, 0.6, "highpass"); },
 };
@@ -362,7 +382,7 @@ let drag = null, spinInput = 0, thrustInput = false, keys = {}, previewStart = 0
 let stats = null, takeNo = 0, slowLeft = 0, particles = [], floaters = [], pendingRemove = [];
 
 function newStats() {
-  return { steps: 0, airborne: true, airSteps: 0, cumAngle: 0, lastAngle: 0, flipsAir: 0, broken: { glass: 0, melon: 0, crate: 0, balloon: 0 }, rings: 0, bounces: 0, lastBounce: -99, fuel: 0, touched: false, touchStep: -1, maxImpact: 0, upright: false, bell: false, injury: 0, landed: null, inWaterSteps: 0, slowSteps: 0, maxX: 0, splashed: false };
+  return { steps: 0, airborne: true, airSteps: 0, cumAngle: 0, lastAngle: 0, flipsAir: 0, broken: { glass: 0, melon: 0, crate: 0, balloon: 0 }, rings: 0, bounces: 0, lastBounce: -99, fuel: 0, ratcheted: false, wallHit: null, wallSpeed: 0, burning: false, burnLeft: 0, extinguished: false, burnSteps: 0, cumAll: 0, rolls: 0, touched: false, touchStep: -1, maxImpact: 0, upright: false, bell: false, injury: 0, landed: null, inWaterSteps: 0, slowSteps: 0, maxX: 0, splashed: false };
 }
 
 function isRag(b) { return b && b.plugin && b.plugin.rag; }
@@ -384,6 +404,7 @@ function buildLevel(c) {
   L.balloon = (x, y, col) => add(kind(Bodies.circle(x, y, 22, { isStatic: true }), "balloon", { col }));
   L.ring = (x, y, rr) => { add(kind(Bodies.circle(x, y, rr, { isStatic: true, isSensor: true }), "ring", { r: rr })); L.decor.push({ type: "pole", x, y0: y + rr, y1: GROUND }); };
   L.tramp = (x, w) => add(kind(Bodies.rectangle(x, GROUND - 30, w, 16, { isStatic: true }), "tramp", { w }));
+  L.breakwall = (x, h) => add(kind(Bodies.rectangle(x, GROUND - h / 2, 30, h, { isStatic: true }), "breakwall", { h }));
   L.bus = x => add(kind(Bodies.rectangle(x, GROUND - 48, 112, 96, { isStatic: true, friction: 0.8 }), "bus"));
   // rooftop landing pad: building of height h, pad zone on its roof
   L.roof = (x, w, h) => {
@@ -440,7 +461,8 @@ function launch() {
   for (const p of rag.parts) Body.setVelocity(p, { x: dx * v, y: dy * v });
   Body.setAngularVelocity(rag.torso, isCar ? 0 : (Math.random() - 0.5) * 0.04);
   stats = newStats(); stats.lastAngle = rag.torso.angle;
-  if (isCar) stats.fuel = CAR_FUEL;
+  if (isCar) stats.fuel = contract.noFuel ? 0 : CAR_FUEL;
+  if (contract.action === "burn") { stats.burning = true; stats.burnLeft = BURN_STEPS; rag.burning = true; fx("sfx", { n: "ignite" }); }
   takeNo++;
   state = "fly";
   shake = 10;
@@ -464,6 +486,20 @@ function onCollision(e) {
     // velocities shrink with slow-motion timeScale; normalise to real speed
     const rel = Math.hypot(r.velocity.x - o.velocity.x, r.velocity.y - o.velocity.y) / (engine.timing.timeScale || 1);
     if (o.plugin.broken) { pair.isActive = false; continue; }
+    if (k === "breakwall" && !stats.wallHit) {
+      // the first contact decides: too soft bounces off, too hard is an NG
+      stats.wallSpeed = rel;
+      if (rel < 5) { stats.wallHit = "soft"; floater(o.position.x, o.position.y - o.plugin.h / 2 - 30, "너무 약해!", "#ffb23e"); }
+      else {
+        stats.wallHit = rel <= 12 ? "good" : "hard";
+        o.plugin.broken = true; pair.isActive = false; pendingRemove.push(o);
+        fx("shatter", { k: "breakwall", x: o.position.x, y: o.position.y, h: o.plugin.h });
+        slowLeft = 30;
+        if (stats.wallHit === "good") floater(o.position.x, o.position.y - o.plugin.h / 2 - 30, "딱 좋아!", "#4fd18b");
+        else { floater(o.position.x, o.position.y - o.plugin.h / 2 - 30, "너무 세!", "#ff4b3a"); stats.injury += 40; }
+        continue;
+      }
+    }
     if (BREAK[k] && rel > BREAK[k]) {
       o.plugin.broken = true; pair.isActive = false;
       stats.broken[k]++; pendingRemove.push(o);
@@ -512,6 +548,16 @@ function beforeUpdate() {
   if (!rag || state !== "fly") return;
   const t = rag.torso;
   if (rag.car) { carControl(t); return; }
+  if (contract.action === "ratchet" && thrustInput && !stats.ratcheted && stats.steps > 5) {
+    // pneumatic ratchet: the cable yanks the stuntman back toward the cannon
+    stats.ratcheted = true; rag.cableCut = stats.steps;
+    for (const p of rag.parts) Body.setVelocity(p, { x: p.velocity.x * 0.45, y: p.velocity.y * 0.5 - 1.5 * (engine.timing.timeScale || 1) });
+    fx("sfx", { n: "ratchet" }); floater(t.position.x, t.position.y - 50, "철컥!", "#8fd3ff"); shake = Math.max(shake, 6);
+  }
+  if (stats.burning) {
+    stats.burnLeft -= engine.timing.timeScale || 1; stats.burnSteps++;
+    if (stats.burnLeft <= 0) { stats.burning = false; rag.burning = false; stats.injury += 80; floater(t.position.x, t.position.y - 50, "앗 뜨거!", "#ff4b3a"); fx("sfx", { n: "thud", v: 20 }); }
+  }
   if (spinInput && stats.airborne) {
     const av = Math.max(-0.32, Math.min(0.32, t.angularVelocity + spinInput * airTorque(save.up.air)));
     Body.setAngularVelocity(t, av);
@@ -527,6 +573,7 @@ function beforeUpdate() {
     }
     if (any) {
       stats.airborne = false;
+      if (stats.burning) { stats.burning = false; rag.burning = false; stats.extinguished = true; floater(t.position.x, W.y0 - 40, "치이익~ 소화!", "#8fd3ff"); fx("sfx", { n: "hiss" }); }
       if (!stats.splashed) { stats.splashed = true; fx("splash", { x: t.position.x, y: W.y0 }); }
     }
   }
@@ -535,6 +582,7 @@ function beforeUpdate() {
 /* ---------- rocket roadster (car projectile) ---------- */
 const CAR_FUEL = 300;          // 5 seconds of cold gas at 60 steps/s
 const CAR_THRUST = 0.62;       // per-step acceleration, a bit over 2g
+const BURN_STEPS = 120;        // 2 seconds on fire
 function buildCar(x, y, rot) {
   const car = Bodies.rectangle(x, y, 130, 44, { chamfer: { radius: 10 }, frictionAir: 0.004, friction: 0.8, restitution: 0.08, density: 0.002 });
   car.plugin = { rag: true, part: "car" };
@@ -557,8 +605,14 @@ function carControl(t) {
   // attitude jets: rotate on input, otherwise gyro damping holds the car steady
   if (stats.airborne) {
     let av = t.angularVelocity;
-    av = spinInput ? av + spinInput * 0.0045 * ts : av * 0.96;
-    Body.setAngularVelocity(t, Math.max(-0.09, Math.min(0.09, av)));
+    if (contract.rollTarget) {
+      // cannon roll: strong spin jets, no gyro damping, so rolls carry on after touchdown
+      if (spinInput) av += spinInput * 0.014 * ts;
+      Body.setAngularVelocity(t, Math.max(-0.26, Math.min(0.26, av)));
+    } else {
+      av = spinInput ? av + spinInput * 0.0045 * ts : av * 0.96;
+      Body.setAngularVelocity(t, Math.max(-0.09, Math.min(0.09, av)));
+    }
   }
 }
 function shatter(b, k) {
@@ -583,6 +637,7 @@ function runFx(type, d) {
   else if (type === "ring") { SFX.whoosh(); for (let i = 0; i < 26; i++) { const a = Math.random() * Math.PI * 2; spawnParticle(d.x + Math.cos(a) * d.r * 0.3, d.y + Math.sin(a) * d.r, (Math.random() - 0.3) * 6, -Math.random() * 5, i % 2 ? "#ffb23e" : "#ff4b3a", 5 + Math.random() * 6, 0.7, "chunk"); } }
   else if (type === "shatter") {
     const { k, x, y } = d;
+    if (k === "breakwall") { SFX.crate(); for (let i = 0; i < 26; i++) spawnParticle(x + (Math.random() - 0.5) * 30, y + (Math.random() - 0.5) * d.h, Math.random() * 9, (Math.random() - 0.7) * 8, i % 3 ? "#c9b48a" : "#8a7656", 5 + Math.random() * 9, 1.2, "plank"); }
     if (k === "balloon") { SFX.pop(); for (let i = 0; i < 16; i++) spawnParticle(x, y, (Math.random() - 0.5) * 9, (Math.random() - 0.6) * 9, d.col || "#ff5d73", 3 + Math.random() * 5, 0.8, "shard"); }
     if (k === "glass") { SFX.glass(); for (let i = 0; i < 30; i++) spawnParticle(x, y + (Math.random() - 0.5) * d.h, (Math.random() - 0.2) * 9, (Math.random() - 0.7) * 8, "rgba(190,235,255,.9)", 4 + Math.random() * 9, 1.2, "shard"); }
     if (k === "melon") { SFX.melon(); for (let i = 0; i < 22; i++) spawnParticle(x, y, (Math.random() - 0.5) * 10, -Math.random() * 9, i % 3 ? "#e8434f" : "#2f7a3a", 4 + Math.random() * 6, 1, "chunk"); }
@@ -620,6 +675,8 @@ function trackTake() {
     s.cumAngle += t.angle - s.lastAngle;
     s.flipsAir = Math.floor(Math.abs(s.cumAngle) / (Math.PI * 2) + 0.08);
   }
+  s.cumAll += t.angle - s.lastAngle;
+  s.rolls = Math.floor(Math.abs(s.cumAll) / (Math.PI * 2) + 0.08);
   s.lastAngle = t.angle;
   s.maxX = Math.max(s.maxX, t.position.x);
   s.landed = zoneAt(t.position.x, t.position.y);
@@ -646,8 +703,12 @@ function score(c, s) {
     [`불 고리 ${s.rings}개`, s.rings * 100],
     [`트램펄린 ${s.bounces}회`, s.bounces * 80],
     ["리얼한 고통 연기", c.projectile === "car" ? 0 : Math.round(Math.min(150, s.injury))],
-    ["남은 가스", c.projectile === "car" && success ? Math.round(s.fuel / CAR_FUEL * 250) : 0],
-    ["사뿐한 착지", c.projectile === "car" && success ? Math.round(Math.max(0, 6 - s.maxImpact) * 50) : 0],
+    ["남은 가스", c.projectile === "car" && !c.noFuel && success ? Math.round(s.fuel / CAR_FUEL * 250) : 0],
+    ["사뿐한 착지", c.projectile === "car" && !c.rollTarget && success ? Math.round(Math.max(0, 6 - s.maxImpact) * 50) : 0],
+    [`캐논 롤 ${s.rolls}회전`, c.rollTarget ? s.rolls * 60 : 0],
+    ["세계 기록급 롤(8회+)", c.rollTarget && s.rolls >= 8 ? 500 : 0],
+    ["정확한 감속", c.action === "ratchet" && s.wallHit === "good" ? Math.round(Math.max(0, 5 - Math.abs(s.wallSpeed - 8.5)) * 40) : 0],
+    [`불붙은 채 ${(s.burnSteps / 60).toFixed(1)}초`, c.action === "burn" && s.extinguished ? Math.round(s.burnSteps / 60 * 120) : 0],
   ];
   const total = parts.reduce((a, p) => a + p[1], 0);
   return { success, parts, total };
@@ -687,7 +748,13 @@ function updateHud() {
   $("hudObjs").innerHTML = contract.objs.map(o => `<li class="${(stats && o.f(s)) ? "done" : ""}">${o.t}</li>`).join("");
   $("hudLive").textContent = state === "aim"
     ? `최대 속도 ${maxSpeed(save.up.power).toFixed(1)} · 각도 ${Math.round(aim.angle)}° · 힘 ${Math.round(aim.power * 100)}%`
-    : rag && rag.car
+    : contract.rollTarget
+      ? `회전 ${s.rolls} / 목표 ${contract.rollTarget} · 충격 ${s.maxImpact.toFixed(1)}`
+      : contract.action === "burn"
+      ? (s.extinguished ? "불 꺼짐 · 소화 성공" : s.burning ? `불 꺼지기까지 ${Math.max(0, s.burnLeft / 60).toFixed(1)}초` : stats ? "화상! 시간 초과" : "발사하면 불이 붙습니다")
+      : contract.action === "ratchet"
+      ? `래칫 ${s.ratcheted ? "사용함" : "대기"} · 벽 충돌 ${s.wallSpeed ? s.wallSpeed.toFixed(1) : "-"} (적정 5~12)`
+      : rag && rag.car
       ? `가스 ${Math.round(s.fuel / CAR_FUEL * 100)}% · 속도 ${(rag.torso.speed / (engine.timing.timeScale || 1)).toFixed(1)} · 충격 ${s.maxImpact.toFixed(1)}`
       : `회전 ${s.flipsAir} · 파괴 ${Object.values(s.broken).reduce((a, b) => a + b, 0)} · 부상 ${Math.round(s.injury)}`;
   const flying = state === "fly";
@@ -695,11 +762,19 @@ function updateHud() {
   $("hud").hidden = state === "replay" || state === "office";
   if (state === "replay") { $("spinL").hidden = $("spinR").hidden = true; $("hint").hidden = false; $("hint").classList.add("up"); $("hint").textContent = coarse ? "리플레이 중 · 화면을 누르면 건너뛰기" : "리플레이 중 · 클릭 또는 Esc 로 건너뛰기"; return; }
   $("spinL").hidden = $("spinR").hidden = !(flying && coarse);
-  $("thrust").hidden = !(flying && coarse && contract.projectile === "car");
+  const action = contract.projectile === "car" && !contract.noFuel ? "추진" : contract.action === "ratchet" ? "래칫" : "";
+  $("thrust").textContent = action; $("thrust").setAttribute("aria-label", action === "래칫" ? "래칫 케이블 당기기" : "추진기 분사");
+  $("thrust").hidden = !(flying && coarse && action);
   $("hint").hidden = !(state === "aim" || flying);
   $("hint").textContent = state === "aim"
     ? (coarse ? "화면을 뒤로 끌었다 놓으면 발사" : "드래그로 조준 후 놓으면 발사 · ↑↓ 각도 · ←→ 힘 · Space 발사")
-    : contract.projectile === "car"
+    : contract.rollTarget
+      ? (coarse ? "⟲ ⟳ 로 차를 굴리기 · 정확히 5바퀴" : "← → 로 차를 굴리기 · 정확히 5바퀴")
+      : contract.action === "ratchet"
+      ? (coarse ? "래칫 버튼으로 한 번 케이블 당기기" : "Space / ↓ 로 한 번 케이블 당기기 · ← → 회전")
+      : contract.action === "burn"
+      ? (coarse ? "불이 꺼지기 전에 물탱크로!" : "불이 꺼지기 전에 물탱크로! · ← → 회전")
+      : contract.projectile === "car"
       ? (coarse ? "추진 버튼을 누르는 동안 분사 · ⟲ ⟳ 자세 제어" : "↑ (W) 누르는 동안 추진기 분사 · ← → 자세 제어")
       : (coarse ? "⟲ ⟳ 를 눌러 공중 회전" : "← → (A/D) 로 공중 회전");
   $("btnMute").textContent = save.muted ? "소리 꺼짐" : "소리 켜짐";
@@ -878,7 +953,7 @@ window.addEventListener("keydown", e => {
   } else if (state === "fly") {
     if (["ArrowLeft", "a", "A"].includes(e.key)) { spinInput = -1; e.preventDefault(); }
     if (["ArrowRight", "d", "D"].includes(e.key)) { spinInput = 1; e.preventDefault(); }
-    if (["ArrowUp", "w", "W", " "].includes(e.key)) { thrustInput = true; e.preventDefault(); }
+    if (["ArrowUp", "w", "W", " ", "ArrowDown", "s", "S"].includes(e.key)) { thrustInput = true; e.preventDefault(); }
   } else if (state === "result" && !$("result").hidden && (e.key === "r" || e.key === "R")) {
     startContract(CONTRACTS.indexOf(contract), true);
   }
@@ -888,7 +963,7 @@ window.addEventListener("keydown", e => {
 });
 window.addEventListener("keyup", e => {
   keys[e.key] = false;
-  if (["ArrowUp", "w", "W", " "].includes(e.key)) thrustInput = keys.ArrowUp || keys.w || keys.W || keys[" "] || false;
+  if (["ArrowUp", "w", "W", " ", "ArrowDown", "s", "S"].includes(e.key)) thrustInput = keys.ArrowUp || keys.w || keys.W || keys[" "] || keys.ArrowDown || keys.s || keys.S || false;
   if (["ArrowLeft", "a", "A", "ArrowRight", "d", "D"].includes(e.key)) {
     const l = keys.ArrowLeft || keys.a || keys.A, r = keys.ArrowRight || keys.d || keys.D;
     spinInput = l ? -1 : r ? 1 : 0;
@@ -1001,6 +1076,10 @@ function drawBodies() {
         const a = i / 18 * Math.PI * 2, fx0 = Math.cos(a) * 16, fy0 = Math.sin(a) * rr, h = 10 + Math.sin(fl + i * 1.7) * 5;
         ctx.fillStyle = i % 2 ? "#ffb23e" : "#ff6a2a"; ctx.beginPath(); ctx.ellipse(fx0, fy0 - h / 2, 5, h, 0, 0, Math.PI * 2); ctx.fill();
       }
+    } else if (k === "breakwall") {
+      const h = b.plugin.h; ctx.fillStyle = "#c9b48a"; ctx.fillRect(-15, -h / 2, 30, h);
+      ctx.strokeStyle = "#8a7656"; ctx.lineWidth = 2; for (let y = -h / 2 + 24; y < h / 2; y += 24) { ctx.beginPath(); ctx.moveTo(-15, y); ctx.lineTo(15, y); ctx.stroke(); }
+      ctx.setLineDash([6, 5]); ctx.strokeStyle = "#ff4b3a"; ctx.beginPath(); ctx.moveTo(-6, -h / 2 + 10); ctx.lineTo(4, -10); ctx.lineTo(-4, h / 2 - 10); ctx.stroke(); ctx.setLineDash([]);
     } else if (k === "tramp") {
       const w = b.plugin.w; ctx.fillStyle = "#555b6e"; ctx.fillRect(-w / 2, 6, 8, 22); ctx.fillRect(w / 2 - 8, 6, 8, 22);
       ctx.fillStyle = "#1f2433"; ctx.fillRect(-w / 2, -8, w, 16); ctx.fillStyle = "#4fd18b"; ctx.fillRect(-w / 2, -8, w, 4);
@@ -1094,7 +1173,7 @@ function drawCar() {
   for (const wx of [-40, 42]) { ctx.fillStyle = "#11131b"; ctx.beginPath(); ctx.arc(wx, 10, 12, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#9aa0b4"; ctx.beginPath(); ctx.arc(wx, 10, 5, 0, Math.PI * 2); ctx.fill(); }
   ctx.restore();
   // fuel gauge above the car (live only)
-  if (state === "fly" && stats) {
+  if (state === "fly" && stats && !contract.noFuel) {
     const f = stats.fuel / CAR_FUEL;
     ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(t.position.x - 40, t.position.y - 62, 80, 8);
     ctx.fillStyle = f > 0.25 ? "#8fd3ff" : "#ff4b3a"; ctx.fillRect(t.position.x - 40, t.position.y - 62, 80 * f, 8);
@@ -1104,6 +1183,13 @@ function drawRag() {
   if (!rag) return;
   if (rag.car) { drawCar(); return; }
   const { torso, head, limbs } = rag;
+  const fi = state === "replay" ? Math.min(replay.last, Math.round(replay.rf)) : -1;
+  // ratchet cable from the cannon while it is still attached
+  const cable = state === "replay" ? recording.cable && recording.cable[fi] : contract.action === "ratchet" && stats && !stats.ratcheted;
+  if (cable) { ctx.strokeStyle = "rgba(200,205,220,.75)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(LAUNCHER.x, LAUNCHER.y); ctx.quadraticCurveTo((LAUNCHER.x + torso.position.x) / 2, Math.max(LAUNCHER.y, torso.position.y) + 60, torso.position.x, torso.position.y); ctx.stroke(); }
+  // full-body burn flames
+  const onFire = state === "replay" ? recording.flame[fi] : rag.burning;
+  if (onFire && !reducedMotion) for (const p of rag.parts) if (Math.random() < 0.7) spawnParticle(p.position.x + (Math.random() - 0.5) * 14, p.position.y + (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 1.5, -1.5 - Math.random() * 2, Math.random() < 0.5 ? "#ffb23e" : "#ff6a2a", 4 + Math.random() * 6, 0.35, "smoke");
   limb(limbs.legL, 40, 11, C.suitDark); limb(limbs.armL, 30, 9, C.suitDark);
   ctx.save(); ctx.translate(torso.position.x, torso.position.y); ctx.rotate(torso.angle);
   ctx.fillStyle = C.suit; roundRect(-11, -24, 22, 48, 8); ctx.fill();
@@ -1178,7 +1264,9 @@ function recordFrame() {
   const t = recording.tracked, f = new Float32Array(t.length * 4);
   for (let i = 0; i < t.length; i++) { const b = t[i]; f[i * 4] = b.plugin.removed ? 0 : 1; f[i * 4 + 1] = b.position.x; f[i * 4 + 2] = b.position.y; f[i * 4 + 3] = b.angle; }
   recording.frames.push(f);
-  recording.flame.push(rag && rag.thrusting ? 1 : 0);
+  recording.flame.push(rag && (rag.thrusting || rag.burning) ? 1 : 0);
+  if (!recording.cable) recording.cable = [];
+  recording.cable.push(rag && contract.action === "ratchet" && !stats.ratcheted ? 1 : 0);
 }
 const KEY_FX = { shatter: 1, splash: 1, ring: 1 };
 function startReplay() {
@@ -1188,7 +1276,7 @@ function startReplay() {
   // slow down around the money shots: breaks, splash, bell, big hits
   const slow = new Uint8Array(last + 1);
   const mark = s => { for (let i = Math.max(0, s - 8); i <= Math.min(last, s + 22); i++) slow[i] = 1; };
-  for (const e of recording.events) if (KEY_FX[e.type] || (e.type === "sfx" && (e.d.n === "bell" || e.d.n === "boing"))) mark(e.step);
+  for (const e of recording.events) if (KEY_FX[e.type] || (e.type === "sfx" && (e.d.n === "bell" || e.d.n === "boing" || e.d.n === "ratchet"))) mark(e.step);
   if (contract.projectile === "car" && stats && stats.touchStep >= 0) mark(stats.touchStep);
   replay = { rf: 0, ei: 0, last, slow, zoom: 1, hold: 0, speed: 1, events: recording.events.slice().sort((a, b) => a.step - b.step) };
   particles = []; floaters = []; shake = 0;
