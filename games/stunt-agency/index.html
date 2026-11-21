@@ -363,6 +363,7 @@ const LINES = {
   ok: ["좋아, 쓸 만해. 근데 한 번 더 가면 더 좋겠는데?", "통과! 다음 씬 준비해.", "편집으로 살릴 수 있겠어."],
   fail: ["컷! 다시 가자.", "그건 스턴트가 아니라 그냥 사고야.", "대본 읽긴 했어?", "카메라 돌아가는 거 알지? 필름값 비싸."],
   hurt: ["구급차 불러! …근데 그림은 좋았어.", "아이고, 소리 들으니까 내가 다 아프네.", "보험 들어 놨지? 그렇지?"],
+  ambulance: ["맨땅은 매트가 아니야! 병원 다녀와서 다시 가자.", "구급차 대기시켜 둔 게 신의 한 수였네.", "들것 들어! …카메라는 계속 돌려.", "그 장면은 메이킹 필름에 넣자."],
 };
 const RANKS = [[0, "동네 대역"], [4, "충무로 신인"], [16, "액션 전문 사무소"], [32, "할리우드 러브콜"], [50, "전설의 대역"]];
 const rankOf = s => RANKS.filter(r => s >= r[0]).pop()[1];
@@ -432,7 +433,7 @@ let drag = null, spinInput = 0, thrustInput = false, keys = {}, previewStart = 0
 let stats = null, takeNo = 0, slowLeft = 0, particles = [], floaters = [], pendingRemove = [];
 
 function newStats() {
-  return { steps: 0, airborne: true, airSteps: 0, cumAngle: 0, lastAngle: 0, flipsAir: 0, broken: { glass: 0, melon: 0, crate: 0, balloon: 0, bulb: 0, skylight: 0 }, rams: 0, grabbed: false, released: false, onWire: false, wireDone: false, actionHeld: false, rings: 0, bounces: 0, lastBounce: -99, fuel: 0, ratcheted: false, wallHit: null, wallSpeed: 0, burning: false, burnLeft: 0, extinguished: false, burnSteps: 0, cumAll: 0, rolls: 0, inFrame: false, frameSteps: 0, touchAligned: false, touched: false, touchStep: -1, maxImpact: 0, upright: false, bell: false, injury: 0, landed: null, inWaterSteps: 0, slowSteps: 0, maxX: 0, splashed: false };
+  return { steps: 0, airborne: true, airSteps: 0, cumAngle: 0, lastAngle: 0, flipsAir: 0, broken: { glass: 0, melon: 0, crate: 0, balloon: 0, bulb: 0, skylight: 0 }, rams: 0, grabbed: false, released: false, onWire: false, wireDone: false, actionHeld: false, rings: 0, bounces: 0, lastBounce: -99, fuel: 0, ratcheted: false, wallHit: null, wallSpeed: 0, burning: false, burnLeft: 0, extinguished: false, burnSteps: 0, cumAll: 0, rolls: 0, inFrame: false, frameSteps: 0, touchAligned: false, touched: false, touchStep: -1, maxImpact: 0, upright: false, bell: false, injury: 0, landed: null, lastSurface: null, inWaterSteps: 0, slowSteps: 0, maxX: 0, splashed: false };
 }
 
 function isRag(b) { return b && b.plugin && b.plugin.rag; }
@@ -542,8 +543,36 @@ function buildRagdoll(x, y, rot) {
   return { comp, torso, head, parts: [torso, head, armL, armR, legL, legR], limbs: { armL, armR, legL, legR } };
 }
 
+/* "레디~ 액션!" — the director calls the take, the cannon fires on "액션!" */
+let readyTimer = null;
+function say(text, rate = 1.1) {
+  if (save.muted || !window.speechSynthesis) return;
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "ko-KR"; u.rate = rate;
+    const v = speechSynthesis.getVoices().find(x => /^ko/i.test(x.lang));
+    if (v) u.voice = v;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
 function launch() {
   if (state !== "aim") return;
+  state = "ready"; drag = null;
+  if (window.speechSynthesis) speechSynthesis.cancel();
+  say("레디~", 0.9);
+  floater(LAUNCHER.x + 60, LAUNCHER.y - 150, "레디~", "#ffb23e");
+  updateHud();
+  clearTimeout(readyTimer);
+  readyTimer = setTimeout(() => {
+    if (state !== "ready") return;
+    say("액션!", 1.2);
+    tone(1800, 0.05, 0.2, "square"); // clapperboard clack
+    floater(LAUNCHER.x + 60, LAUNCHER.y - 190, "액션!", "#ff4b3a");
+    fire();
+  }, 900);
+}
+function fire() {
+  if (state !== "aim" && state !== "ready") return;
   const a = aim.angle * Math.PI / 180, v = maxSpeed(save.up.power) * aim.power;
   const dx = Math.cos(a), dy = -Math.sin(a);
   const mx = LAUNCHER.x + dx * 70, my = LAUNCHER.y + dy * 70;
@@ -638,6 +667,7 @@ function onCollision(e) {
       else if (rel > 0.5 && stats.airborne) floater(r.position.x, r.position.y - 50, rel <= 6 ? "사뿐!" : "덜컹!", rel <= 6 ? "#4fd18b" : "#ffb23e");
     }
     if (stats.airborne && LANDING[k]) stats.airborne = false;
+    if (LANDING[k] && !rag.car) stats.lastSurface = k; // remembers what the stuntman last hit (bare ground → ambulance)
     if (SOFT[k] !== undefined) {
       for (const p of rag.parts) Body.setVelocity(p, { x: p.velocity.x * 0.45, y: p.velocity.y * 0.35 });
     }
@@ -891,6 +921,7 @@ function endTake() {
   state = "result";
   spinInput = 0; thrustInput = false;
   SFX.cut();
+  say("컷~!", 0.95);
   const c = contract, s = stats, sc = score(c, s);
   const first = !save.cleared[c.id];
   const stars = sc.success ? 1 + (sc.total >= c.t2 ? 1 : 0) + (sc.total >= c.t3 ? 1 : 0) : 0;
@@ -904,9 +935,82 @@ function endTake() {
   save.stars[c.id] = Math.max(prevStars, stars);
   persist();
   const hurt = s.injury > 90;
-  const line = !sc.success ? (hurt ? pick(LINES.hurt) : pick(LINES.fail)) : stars >= 3 ? pick(LINES.great) : hurt ? pick(LINES.hurt) : pick(LINES.ok);
-  setTimeout(() => showResult({ sc, stars, prevStars, pay, bonus, medical, net, first, line }), reducedMotion ? 0 : 650);
+  // a failed take that ends flat on bare ground: the ambulance comes before the result card
+  const onGround = !sc.success && !rag.car && s.lastSurface === "ground" && !s.splashed && rag.torso.position.y > GROUND - 80;
+  const line = onGround ? pick(LINES.ambulance) : !sc.success ? (hurt ? pick(LINES.hurt) : pick(LINES.fail)) : stars >= 3 ? pick(LINES.great) : hurt ? pick(LINES.hurt) : pick(LINES.ok);
+  const r = { sc, stars, prevStars, pay, bonus, medical, net, first, line };
+  if (onGround && !reducedMotion) setTimeout(() => { if (state === "result" && $("result").hidden) startAmbulance(r); }, 450);
+  else setTimeout(() => showResult(r), reducedMotion ? 0 : 650);
   updateHud();
+}
+
+/* ================= ambulance (failed take on bare ground) ================= */
+let amb = null;
+const AMB_IN = 1.5, AMB_LOAD = 1.6, AMB_LOADED = 2.3, AMB_OUT = 2.7, AMB_END = 4.0;
+function startAmbulance(r) {
+  const t = rag.torso;
+  amb = { r, t0: performance.now(), bodyX: t.position.x, stopX: t.position.x + 95, fromX: Math.max(camX + viewW, t.position.x) + 260, x: 0, e: 0, loaded: false, siren: -1 };
+  amb.x = amb.fromX;
+  floater(t.position.x, t.position.y - 60, "삐뽀삐뽀!", "#ff4b3a");
+}
+function finishAmbulance() {
+  if (!amb) return;
+  const r = amb.r; amb = null;
+  if (rag) rag.hidden = true;
+  if (state === "result") showResult(r);
+}
+function updateAmbulance(now) {
+  const A = amb, e = (now - A.t0) / 1000; A.e = e;
+  const ease = p => 1 - Math.pow(1 - p, 3);
+  if (e < AMB_IN) A.x = A.fromX + (A.stopX - A.fromX) * ease(e / AMB_IN);
+  else if (e < AMB_OUT) A.x = A.stopX;
+  else A.x = A.stopX - Math.pow(e - AMB_OUT, 2) * 1500;
+  if (e >= AMB_LOAD && !A.loaded) { A.loaded = true; rag.hidden = true; floater(A.bodyX, GROUND - 120, "병원으로!", "#ffb23e"); }
+  const beat = Math.floor(e / 0.33);
+  if (beat !== A.siren && e < AMB_END - 0.3) { A.siren = beat; tone(beat % 2 ? 720 : 960, 0.3, 0.06, "square"); }
+  if (e >= AMB_END) finishAmbulance();
+}
+function drawAmbulance() {
+  const A = amb, e = A.e;
+  // stretcher carrying the stuntman from where he fell into the side door
+  if (e >= AMB_LOAD && e < AMB_LOADED) {
+    const p = (e - AMB_LOAD) / (AMB_LOADED - AMB_LOAD);
+    const sx = A.bodyX + (A.x + 25 - A.bodyX) * p, sy = GROUND - 14 - 36 * p;
+    ctx.save(); ctx.translate(sx, sy);
+    ctx.fillStyle = "#9aa3b5"; ctx.fillRect(-34, 2, 4, 12); ctx.fillRect(30, 2, 4, 12);
+    ctx.fillStyle = "#f4f1ea"; ctx.fillRect(-40, -4, 80, 8);
+    ctx.fillStyle = C.suit; roundRect(-26, -13, 40, 10, 4); ctx.fill();
+    ctx.fillStyle = C.skin; ctx.beginPath(); ctx.arc(24, -9, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = C.helmet; ctx.beginPath(); ctx.arc(25, -10, 7.5, Math.PI * 1.1, Math.PI * 1.9); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.fillRect(-14, -14, 16, 3); // bandage
+    ctx.restore();
+  }
+  ctx.save(); ctx.translate(A.x, GROUND);
+  const flash = Math.floor(e * 6) % 2;
+  // glow from the light bar
+  ctx.fillStyle = flash ? "rgba(255,60,60,.18)" : "rgba(80,140,255,.18)";
+  ctx.beginPath(); ctx.arc(-60, -100, 90, 0, Math.PI * 2); ctx.fill();
+  // rear box and cab (front faces left)
+  ctx.fillStyle = "#f4f1ea"; roundRect(-30, -112, 128, 98, 6); ctx.fill();
+  ctx.fillStyle = "#e9e4d8"; roundRect(-98, -80, 72, 66, 8); ctx.fill();
+  ctx.fillStyle = "#8fd3ff"; roundRect(-92, -74, 30, 26, 4); ctx.fill();
+  ctx.fillStyle = "#e5402a"; ctx.fillRect(-98, -50, 196, 9);
+  // side door: open while loading
+  if (e >= AMB_LOAD - 0.15 && e < AMB_OUT) { ctx.fillStyle = "#2a2f3d"; ctx.fillRect(8, -100, 40, 84); }
+  else { ctx.strokeStyle = "#cfc8b8"; ctx.lineWidth = 2; ctx.strokeRect(8, -100, 40, 84); }
+  // six-armed star emblem + label
+  ctx.save(); ctx.translate(72, -82); ctx.fillStyle = "#2f6fd6";
+  for (let i = 0; i < 3; i++) { ctx.save(); ctx.rotate(i * Math.PI / 3); ctx.fillRect(-4, -13, 8, 26); ctx.restore(); }
+  ctx.restore();
+  ctx.fillStyle = "#191a20"; ctx.font = "bold 15px 'IBM Plex Sans KR', sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("구급차", 72, -26);
+  // light bar
+  ctx.fillStyle = flash ? "#ff3c3c" : "#7a2020"; ctx.fillRect(-90, -90, 22, 10);
+  ctx.fillStyle = flash ? "#24365e" : "#4d8cff"; ctx.fillRect(-66, -90, 22, 10);
+  // wheels
+  ctx.fillStyle = "#191a20";
+  for (const wx of [-68, 64]) { ctx.beginPath(); ctx.arc(wx, -14, 15, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#9aa3b5"; ctx.beginPath(); ctx.arc(wx, -14, 6, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#191a20"; }
+  ctx.restore();
 }
 
 /* ================= UI: HUD ================= */
@@ -1082,6 +1186,7 @@ $("office").addEventListener("click", e => {
 });
 
 function showOffice() {
+  amb = null; clearTimeout(readyTimer);
   state = "office"; contract = null; engine = null; rag = null; particles = []; floaters = [];
   $("hud").hidden = true; $("hint").hidden = true; $("spinL").hidden = $("spinR").hidden = true; $("result").hidden = true;
   renderOffice(); $("office").hidden = false; revealActiveTab();
@@ -1111,6 +1216,7 @@ document.getElementById("office").addEventListener("keydown", e => {
 });
 function startContract(i, keepTake) {
   contract = CONTRACTS[i];
+  amb = null; clearTimeout(readyTimer);
   if (!keepTake) takeNo = 0;
   buildLevel(contract);
   particles = []; floaters = []; stats = null; camX = 0;
@@ -1159,6 +1265,7 @@ function showResult(r) {
 canvas.addEventListener("pointerdown", e => {
   audio();
   if (state === "replay") { endReplay(); return; }
+  if (amb) { finishAmbulance(); return; }
   if (state !== "aim") return;
   canvas.setPointerCapture(e.pointerId);
   drag = { x: e.clientX, y: e.clientY, a0: aim.angle, p0: aim.power, moved: false };
@@ -1209,6 +1316,7 @@ window.addEventListener("keydown", e => {
   }
   if (state === "result" && !$("result").hidden && (e.key === "p" || e.key === "P")) startReplay();
   if (state === "replay" && (e.key === "Escape" || e.key === " " || e.key === "Enter")) { endReplay(); e.preventDefault(); return; }
+  if (amb && (e.key === " " || e.key === "Enter")) { finishAmbulance(); e.preventDefault(); return; }
   if (e.key === "Escape" && state !== "office") showOffice();
 });
 window.addEventListener("keyup", e => {
@@ -1506,7 +1614,7 @@ function drawCar() {
   }
 }
 function drawRag() {
-  if (!rag) return;
+  if (!rag || (rag.hidden && state !== "replay")) return;
   if (rag.car) { drawCar(); return; }
   const { torso, head, limbs } = rag;
   const fi = state === "replay" ? Math.min(replay.last, Math.round(replay.rf)) : -1;
@@ -1575,7 +1683,10 @@ function frame(t) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = "#0d0f17"; ctx.fillRect(0, 0, cw, ch);
   ctx.setTransform(dpr * scale, 0, 0, dpr * scale, (-camX * scale + sx) * dpr, ((ch - H * scale) + sy) * dpr);
-  drawBackdrop(); drawFloor(); drawBodies(); drawCannon(); drawAim(); drawSwingPreview(); drawRag(); drawParticles(dtMs / 1000);
+  if (amb) updateAmbulance(t);
+  drawBackdrop(); drawFloor(); drawBodies(); drawCannon(); drawAim(); drawSwingPreview(); drawRag();
+  if (amb) drawAmbulance();
+  drawParticles(dtMs / 1000);
   // slow-mo tint
   if (slowLeft > 0 && !reducedMotion) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = "rgba(120,180,255,.08)"; ctx.fillRect(0, 0, cw, ch); }
   // letterbox bars for film look
@@ -1606,6 +1717,7 @@ function startReplay() {
   if (contract.projectile === "car" && stats && stats.touchStep >= 0) mark(stats.touchStep);
   replay = { rf: 0, ei: 0, last, slow, zoom: 1, hold: 0, speed: 1, events: recording.events.slice().sort((a, b) => a.step - b.step) };
   particles = []; floaters = []; shake = 0;
+  amb = null;
   state = "replay";
   $("result").hidden = true;
   applyReplayFrame(0);
@@ -1686,7 +1798,7 @@ function start() {
 }
 // test hooks (harmless in production)
 window.__stunt = {
-  get rag() { return rag; }, get level() { return level; }, start: i => startContract(i), thrust: v => { thrustInput = v; }, replay: () => startReplay(), get state() { return state; }, spin: d => { spinInput = d; }, aim: (a, p) => { aim.angle = a; aim.power = p; }, launch,
+  get rag() { return rag; }, get level() { return level; }, start: i => startContract(i), thrust: v => { thrustInput = v; }, replay: () => startReplay(), get state() { return state; }, spin: d => { spinInput = d; }, aim: (a, p) => { aim.angle = a; aim.power = p; }, launch: fire, action: launch, get amb() { return amb && { e: amb.e, x: amb.x, loaded: amb.loaded }; },
   sim(steps) { for (let i = 0; i < steps && (state === "fly" || state === "aim"); i++) stepPhysics(); return { state, stats: stats && JSON.parse(JSON.stringify(stats)), x: rag && rag.torso.position.x, y: rag && rag.torso.position.y }; },
   get save() { return save; }, set save(s) { save = s; },
 };
