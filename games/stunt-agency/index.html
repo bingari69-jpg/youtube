@@ -73,7 +73,15 @@ button:focus-visible { outline: 3px solid var(--tungsten); outline-offset: 2px; 
 @media (max-width: 760px) { .cols { grid-template-columns: minmax(0, 1fr); } }
 .sec-h { font-family: var(--mono); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; display: flex; justify-content: space-between; }
 
-.sheet { background: var(--paper); color: var(--ink); border-radius: 4px; overflow: hidden; }
+.sheet { background: var(--paper); color: var(--ink); border-radius: 0 4px 4px 4px; overflow: hidden; }
+.tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: none; display: inline-flex; align-items: center; gap: 8px; background: var(--stage); color: var(--muted); border: 1px solid var(--line); border-bottom: 0; border-radius: 6px 6px 0 0; padding: 9px 14px; font-weight: 700; font-size: 14px; }
+.tab:hover { color: var(--paper); }
+.tab[aria-selected="true"] { background: var(--paper); color: var(--ink); border-color: var(--paper); }
+.tab-count { font-family: var(--mono); font-size: 12px; font-weight: 500; opacity: .75; font-variant-numeric: tabular-nums; }
+.tab-new { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--rec); color: #fff; font-family: var(--mono); font-size: 11px; display: inline-grid; place-items: center; }
+.tab-sub { padding: 10px 16px; font-size: 12.5px; color: #6d6656; border-bottom: 1px solid #cfc7b4; background: #e2dccd; }
 .call { display: grid; grid-template-columns: 52px minmax(0,1fr) auto; gap: 12px; align-items: center; padding: 14px 16px; border-bottom: 1px dashed #b9b2a2; }
 .call:last-child { border-bottom: 0; }
 .call .no { font-family: var(--mono); font-weight: 600; font-size: 12px; color: #6d6656; text-align: center; border: 1.5px solid #6d6656; border-radius: 3px; padding: 6px 0; }
@@ -953,10 +961,34 @@ const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matc
 
 /* ================= UI: office ================= */
 let resetArmed = false;
+/* office tabs: contracts grouped by the kind of stunt work */
+const TABS = [
+  { id: "body", name: "맨몸 액션", sub: "낙하, 파괴, 착지. 대포와 몸 하나로 해결하는 기본기." },
+  { id: "rig", name: "리깅·장치", sub: "에어 램, 래칫, 와이어, 그네. 장비 타이밍이 생명." },
+  { id: "fire", name: "화염", sub: "불붙은 몸과 불 고리. 소방팀 대기 필수." },
+  { id: "car", name: "차량", sub: "차를 직접 쏜다. 추진기, 캐논 롤, 램프 점프." },
+];
+const CAT = {
+  hay: "body", melon: "body", glass: "body", flip: "body", bell: "body", balloon: "body", bus: "body", final: "body",
+  airram: "rig", tramp: "rig", ratchet: "rig", airbag: "rig", polecat: "rig", bulb: "rig",
+  burn: "fire", ring: "fire",
+  roadster: "car", corkscrew: "car", cannonroll: "car",
+};
+let officeTab = (() => { try { const t = localStorage.getItem("stunt-agency-tab"); if (TABS.some(x => x.id === t)) return t; } catch (e) {} return "body"; })();
 function starsHtml(n) { return `<span class="stars">${"★".repeat(n)}<span class="off">${"★".repeat(3 - n)}</span></span>`; }
 function renderOffice() {
   const ts = totalStars();
-  const calls = CONTRACTS.map((c, i) => {
+  const tabInfo = TABS.map(t => {
+    const list = CONTRACTS.filter(c => CAT[c.id] === t.id);
+    const open = list.filter(c => ts >= c.need && !save.cleared[c.id]).length;
+    return { ...t, total: list.length, done: list.filter(c => save.cleared[c.id]).length, open };
+  });
+  const tabsHtml = `<div class="tabs" role="tablist" aria-label="스턴트 장르">${tabInfo.map(t => `
+    <button class="tab" type="button" role="tab" id="tab-${t.id}" data-tab="${t.id}" aria-selected="${t.id === officeTab}" aria-controls="sheet-panel" tabindex="${t.id === officeTab ? 0 : -1}">
+      <span>${t.name}</span><span class="tab-count">${t.done}/${t.total}</span>${t.open ? `<span class="tab-new" title="찍을 수 있는 새 의뢰 ${t.open}개">${t.open}</span>` : ""}
+    </button>`).join("")}</div>`;
+  const cur = tabInfo.find(t => t.id === officeTab);
+  const calls = CONTRACTS.map((c, i) => [c, i]).filter(([c]) => CAT[c.id] === officeTab).map(([c, i]) => {
     const locked = ts < c.need, st = save.stars[c.id] || 0, cleared = save.cleared[c.id];
     const pay = Math.round(c.reward * (cleared ? 0.35 : 1) * (1 + 0.15 * save.up.agent));
     return `<div class="call ${locked ? "locked" : ""}">
@@ -994,7 +1026,9 @@ function renderOffice() {
       </div>
     </header>
     <div class="cols">
-      <section><h2 class="sec-h"><span>오늘의 콜시트</span><span>${CONTRACTS.filter(c => save.cleared[c.id]).length}/${CONTRACTS.length} 완료</span></h2><div class="sheet">${calls}</div></section>
+      <section style="min-width:0"><h2 class="sec-h"><span>오늘의 콜시트</span><span>전체 ${CONTRACTS.filter(c => save.cleared[c.id]).length}/${CONTRACTS.length} 완료</span></h2>
+        ${tabsHtml}
+        <div class="sheet" id="sheet-panel" role="tabpanel" aria-labelledby="tab-${officeTab}"><div class="tab-sub">${cur.sub}</div>${calls}</div></section>
       <section><h2 class="sec-h"><span>장비실</span></h2><div class="gear">${gear}</div></section>
     </div>
     <div class="foot">
@@ -1010,6 +1044,8 @@ $("office").addEventListener("click", e => {
     const u = UPG.find(x => x.id === sell.dataset.sell), l = save.up[u.id];
     if (l > 0) { save.up[u.id]--; save.money += upCost(u, l - 1); persist(); tone(440, 0.12, 0.15, "triangle"); renderOffice(); }
   }
+  const tab = e.target.closest("[data-tab]");
+  if (tab) { selectTab(tab.dataset.tab); return; }
   if (go && !go.disabled) { audio(); startContract(+go.dataset.go); }
   if (buy && !buy.disabled) {
     const u = UPG.find(x => x.id === buy.dataset.buy), l = save.up[u.id], cost = upCost(u, l);
@@ -1026,8 +1062,31 @@ $("office").addEventListener("click", e => {
 function showOffice() {
   state = "office"; contract = null; engine = null; rag = null; particles = []; floaters = [];
   $("hud").hidden = true; $("hint").hidden = true; $("spinL").hidden = $("spinR").hidden = true; $("result").hidden = true;
-  renderOffice(); $("office").hidden = false;
+  renderOffice(); $("office").hidden = false; revealActiveTab();
 }
+// keep the selected tab visible in the horizontally scrolling tab row (phones) without moving the page
+function revealActiveTab() {
+  const row = document.querySelector("#office .tabs"), at = row && row.querySelector('.tab[aria-selected="true"]');
+  if (!at) return;
+  if (at.offsetLeft < row.scrollLeft) row.scrollLeft = at.offsetLeft - 8;
+  else if (at.offsetLeft + at.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = at.offsetLeft + at.offsetWidth - row.clientWidth + 8;
+}
+function selectTab(id, focus) {
+  officeTab = id;
+  try { localStorage.setItem("stunt-agency-tab", id); } catch (e) {}
+  renderOffice();
+  revealActiveTab();
+  if (focus) { const b = document.getElementById("tab-" + id); if (b) b.focus({ preventScroll: true }); }
+}
+// arrow keys move between tabs (WAI-ARIA tabs pattern)
+document.getElementById("office").addEventListener("keydown", e => {
+  if (!e.target.closest || !e.target.closest(".tab")) return;
+  const i = TABS.findIndex(t => t.id === officeTab);
+  if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+    e.preventDefault(); e.stopPropagation();
+    selectTab(TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length].id, true);
+  }
+});
 function startContract(i, keepTake) {
   contract = CONTRACTS[i];
   if (!keepTake) takeNo = 0;
