@@ -94,6 +94,9 @@ button:focus-visible { outline: 3px solid var(--tungsten); outline-offset: 2px; 
 .go { background: var(--ink); color: var(--paper); border: 0; border-radius: 4px; padding: 10px 14px; font-weight: 700; font-size: 14px; white-space: nowrap; }
 .go:hover { background: #000; }
 .call.locked { opacity: .55; }
+.free-call { background: var(--tungsten); color: var(--ink); border-radius: 4px; border-bottom: 0; margin-bottom: 14px; }
+.free-call .no { color: var(--ink); border-color: var(--ink); }
+.free-call .meta { color: var(--ink); }
 .call.locked .go { background: #b9b2a2; color: #5b5547; cursor: not-allowed; }
 
 .gear { display: grid; gap: 10px; }
@@ -358,7 +361,34 @@ const CONTRACTS = [
   },
 ];
 
+/* free shoot (sandbox): every prop on one long set, no goals, no money in or out */
+const FREE = {
+  id: "free", scene: 0, title: "자유 촬영", dir: "jenny", reward: 0, need: 0, W: 2300, t2: Infinity, t3: Infinity, free: true,
+  brief: "목표도 정산도 없어. 촬영장 소품 전부 깔아 놨으니 마음껏 날리고 부숴 봐.",
+  objs: [],
+  build(L) {
+    // packed within reach of a stock cannon (~1600); the air ram and trampoline carry you to the far end
+    L.airram(430, 3.4, -15);
+    L.glass(620, 610, 200);
+    L.table(830, 240, 70);
+    for (let i = 0; i < 5; i++) L.melon(755 + i * 38, GROUND - 70 - 17 - 1);
+    const cols = ["#ff5d73", "#ffb23e", "#5ec8ff", "#8be36a", "#c68bff"];
+    [[1010, 520], [1070, 450], [1130, 520], [1070, 590]].forEach((p, i) => L.balloon(p[0], p[1], cols[i % cols.length]));
+    L.ring(1240, 480, 60);
+    L.tramp(1390, 150);
+    L.hang(1520, 470, 64);
+    L.soft("hay", 1580, 200); L.zone("hay", 1580, 200, 170);
+    L.bell(1730, 380);
+    L.soft("mat", 1880, 200); L.zone("mat", 1880, 200, 170);
+    L.pool(2110, 200, 100);
+    L.marker(430, "발판!", GROUND - 60);
+  },
+};
+const contractAt = i => (i === -1 ? FREE : CONTRACTS[i]);
+const contractIndex = c => (c === FREE ? -1 : CONTRACTS.indexOf(c));
+
 const LINES = {
+  free: ["좋아, 자유롭게 찍은 것 중에 하나는 쓸 수 있겠지.", "이건 메이킹 필름용이야. 마음껏 해.", "소품팀이 운다… 근데 그림은 좋다.", "한 번 더! 이번엔 다 부숴 봐."],
   great: ["오케이! 이거 예고편 각이다.", "완벽해. 오늘 회식은 내가 쏜다.", "이 컷 하나로 칸 간다.", "모니터 앞에서 소름 돋았어."],
   ok: ["좋아, 쓸 만해. 근데 한 번 더 가면 더 좋겠는데?", "통과! 다음 씬 준비해.", "편집으로 살릴 수 있겠어."],
   fail: ["컷! 다시 가자.", "그건 스턴트가 아니라 그냥 사고야.", "대본 읽긴 했어?", "카메라 돌아가는 거 알지? 필름값 비싸."],
@@ -894,7 +924,7 @@ function score(c, s) {
   const brokenN = Object.values(s.broken).reduce((a, b) => a + b, 0);
   const air = s.airSteps / 60;
   const parts = [
-    ["의뢰 달성", success ? 300 : 0],
+    ["의뢰 달성", success && !c.free ? 300 : 0],
     [`공중 ${s.flipsAir}회전`, s.flipsAir * 120],
     [`소품 파괴 ${brokenN}개`, brokenN * 60],
     [`체공 ${air.toFixed(1)}초`, Math.round(air * 40)],
@@ -922,21 +952,28 @@ function endTake() {
   SFX.cut();
   const c = contract, s = stats, sc = score(c, s);
   const first = !save.cleared[c.id];
-  const stars = sc.success ? 1 + (sc.total >= c.t2 ? 1 : 0) + (sc.total >= c.t3 ? 1 : 0) : 0;
-  const pay = sc.success ? Math.round(c.reward * (first ? 1 : 0.35) * (1 + 0.15 * save.up.agent)) : 0;
-  const bonus = Math.round(sc.total * (sc.success ? 0.25 : 0.08));
-  const medical = Math.round(s.injury * 1.6 * (1 - 0.15 * save.up.pad));
-  const net = pay + bonus - medical;
-  const prevStars = save.stars[c.id] || 0;
-  save.money = Math.max(0, save.money + net);
-  if (sc.success) save.cleared[c.id] = true;
-  save.stars[c.id] = Math.max(prevStars, stars);
+  let stars = 0, pay = 0, bonus = 0, medical = 0, net = 0, prevStars = 0, prevBest = 0;
+  if (c.free) {
+    // free shoot: no stars and no money, only a personal best score
+    prevBest = save.freeBest || 0;
+    save.freeBest = Math.max(prevBest, sc.total);
+  } else {
+    stars = sc.success ? 1 + (sc.total >= c.t2 ? 1 : 0) + (sc.total >= c.t3 ? 1 : 0) : 0;
+    pay = sc.success ? Math.round(c.reward * (first ? 1 : 0.35) * (1 + 0.15 * save.up.agent)) : 0;
+    bonus = Math.round(sc.total * (sc.success ? 0.25 : 0.08));
+    medical = Math.round(s.injury * 1.6 * (1 - 0.15 * save.up.pad));
+    net = pay + bonus - medical;
+    prevStars = save.stars[c.id] || 0;
+    save.money = Math.max(0, save.money + net);
+    if (sc.success) save.cleared[c.id] = true;
+    save.stars[c.id] = Math.max(prevStars, stars);
+  }
   persist();
   const hurt = s.injury > 90;
-  // a failed take that ends flat on bare ground: the ambulance comes before the result card
-  const onGround = !sc.success && !rag.car && s.lastSurface === "ground" && !s.splashed && rag.torso.position.y > GROUND - 80;
-  const line = onGround ? pick(LINES.ambulance) : !sc.success ? (hurt ? pick(LINES.hurt) : pick(LINES.fail)) : stars >= 3 ? pick(LINES.great) : hurt ? pick(LINES.hurt) : pick(LINES.ok);
-  const r = { sc, stars, prevStars, pay, bonus, medical, net, first, line };
+  // a take that ends flat on bare ground (a failed one, or any free shoot): the ambulance comes before the result card
+  const onGround = (c.free || !sc.success) && !rag.car && s.lastSurface === "ground" && !s.splashed && rag.torso.position.y > GROUND - 80;
+  const line = onGround ? pick(LINES.ambulance) : c.free ? pick(LINES.free) : !sc.success ? (hurt ? pick(LINES.hurt) : pick(LINES.fail)) : stars >= 3 ? pick(LINES.great) : hurt ? pick(LINES.hurt) : pick(LINES.ok);
+  const r = { sc, stars, prevStars, pay, bonus, medical, net, first, line, prevBest };
   if (onGround && !reducedMotion) setTimeout(() => { if (state === "result" && $("result").hidden) startAmbulance(r); }, 450);
   else setTimeout(() => showResult(r), reducedMotion ? 0 : 650);
   updateHud();
@@ -1148,6 +1185,15 @@ function renderOffice() {
     </div>
     <div class="cols">
       <section style="min-width:0"><h2 class="sec-h"><span>오늘의 콜시트</span><span>전체 ${CONTRACTS.filter(c => save.cleared[c.id]).length}/${CONTRACTS.length} 완료</span></h2>
+        <div class="call free-call">
+          <div class="no">FREE</div>
+          <div style="min-width:0">
+            <h3>🎬 ${FREE.title}</h3>
+            <div class="brief">“${FREE.brief}”</div>
+            <div class="meta"><span>최고 기록 ${save.freeBest || 0}점</span><span>정산 없음</span></div>
+          </div>
+          <button class="go" type="button" data-go="-1">자유 촬영</button>
+        </div>
         ${tabsHtml}
         <div class="sheet" id="sheet-panel" role="tabpanel" aria-labelledby="tab-${officeTab}"><div class="tab-sub">${cur.sub}</div>${calls}</div></section>
       <section><h2 class="sec-h"><span>장비실</span></h2><div class="gear">${gear}</div></section>
@@ -1214,7 +1260,7 @@ document.getElementById("office").addEventListener("keydown", e => {
   }
 });
 function startContract(i, keepTake) {
-  contract = CONTRACTS[i];
+  contract = contractAt(i);
   stopSiren(); amb = null; clearTimeout(readyTimer);
   if (!keepTake) takeNo = 0;
   buildLevel(contract);
@@ -1226,7 +1272,33 @@ function startContract(i, keepTake) {
 }
 
 /* ================= UI: results ================= */
+function showFreeResult(r) {
+  const rows = r.sc.parts.filter(p => p[1] > 0).map(p => `<tr><td>${p[0]}</td><td>${p[1]} 점</td></tr>`).join("");
+  const best = save.freeBest || 0, newBest = r.sc.total > r.prevBest && r.sc.total > 0;
+  $("result").innerHTML = `<div class="card" role="dialog" aria-label="자유 촬영 결과">
+    <div class="stamp">컷!</div>
+    <p class="quote">“${r.line}”<small>— ${DIRECTORS[FREE.dir]}, 「${FREE.title}」 TAKE ${takeNo}</small></p>
+    <table class="bill">
+      ${rows || `<tr><td>점수</td><td>0 점</td></tr>`}
+      <tr class="total"><td>이번 테이크</td><td>${r.sc.total} 점${newBest ? ` <span style="font-size:12px;color:#138a52;font-family:var(--mono)">NEW BEST</span>` : ""}</td></tr>
+      <tr><td>최고 기록</td><td>${best} 점</td></tr>
+    </table>
+    <div style="font-family:var(--mono);font-size:12px;color:#6d6656">자유 촬영은 돈이 들지도, 벌리지도 않습니다.</div>
+    ${recording && recording.frames.length > 10 ? `<button class="replay-btn" type="button" id="btnReplay">▶ 슬로모션 리플레이 (P)</button>` : ""}
+    <div class="actions">
+      <button class="go" type="button" id="btnRetry">다시 찍기 (R)</button>
+      <button class="alt" type="button" id="btnBack">사무소로</button>
+    </div>
+  </div>`;
+  $("result").hidden = false;
+  lastResult = r;
+  $("btnRetry").onclick = () => startContract(-1, true);
+  if ($("btnReplay")) $("btnReplay").onclick = startReplay;
+  $("btnBack").onclick = showOffice;
+  $("btnRetry").focus({ preventScroll: true });
+}
 function showResult(r) {
+  if (contract.free) return showFreeResult(r);
   const c = contract, newBest = r.stars > r.prevStars;
   const rows = r.sc.parts.filter(p => p[1] > 0).map(p => `<tr><td>${p[0]}</td><td>${p[1]} 점</td></tr>`).join("");
   const nextIdx = CONTRACTS.indexOf(c) + 1, next = CONTRACTS[nextIdx];
@@ -1311,7 +1383,7 @@ window.addEventListener("keydown", e => {
     if (["ArrowRight", "d", "D"].includes(e.key)) { spinInput = 1; e.preventDefault(); }
     if (["ArrowUp", "w", "W", " ", "ArrowDown", "s", "S"].includes(e.key)) { thrustInput = true; e.preventDefault(); }
   } else if (state === "result" && !$("result").hidden && (e.key === "r" || e.key === "R")) {
-    startContract(CONTRACTS.indexOf(contract), true);
+    startContract(contractIndex(contract), true);
   }
   if (state === "result" && !$("result").hidden && (e.key === "p" || e.key === "P")) startReplay();
   if (state === "replay" && (e.key === "Escape" || e.key === " " || e.key === "Enter")) { endReplay(); e.preventDefault(); return; }
