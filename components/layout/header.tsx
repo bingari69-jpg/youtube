@@ -2,16 +2,17 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, BarChart3, Folder, TrendingUp } from 'lucide-react';
+import { Search, BarChart3, Folder, TrendingUp, Gamepad2 } from 'lucide-react';
 import { SettingsButton } from './settings-modal';
 
-// 네비게이션 메뉴 항목
+// 네비게이션 메뉴 항목 (newTab: 앱 밖의 전체 화면 페이지를 새 탭으로 연다)
 const navItems = [
   { href: '/', label: '영상 찾기', icon: Search },
   { href: '/channel-search', label: '채널 찾기', icon: BarChart3 },
   { href: '/trending', label: '떡상 추천', icon: TrendingUp },
   { href: '/channel-analysis', label: '채널 분석', icon: BarChart3 },
   { href: '/collected', label: '수집한 영상', icon: Folder },
+  { href: '/games/stunt-agency', label: '스턴트 대역 사무소', icon: Gamepad2, newTab: true },
 ];
 
 // CreatorLens 공통 헤더 (글래스모피즘 + sticky)
@@ -34,6 +35,25 @@ export function Header() {
               (item.href === '/channel-search' && (pathname === '/channel-search' || pathname.startsWith('/channel/')) ) ||
               (item.href === '/channel-analysis' && pathname === '/channel-analysis') ||
               (item.href === '/collected' && pathname === '/collected');
+
+            // 게임은 Next 페이지가 아니라 HTML 한 장이라 새 탭에서 연다
+            // (Link 를 써야 next.config 의 basePath '/youtube' 가 주소 앞에 붙는다)
+            if (item.newTab) {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener"
+                  prefetch={false}
+                  className="flex items-center gap-1.5 px-4 py-4 text-sm whitespace-nowrap transition-colors border-b-2 text-gray-400 border-transparent hover:text-gray-200"
+                >
+                  <Icon className="w-4 h-4" />
+                  {item.label}
+                </Link>
+              );
+            }
 
             return (
               <Link
