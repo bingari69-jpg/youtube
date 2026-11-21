@@ -94,6 +94,13 @@ button:focus-visible { outline: 3px solid var(--tungsten); outline-offset: 2px; 
 .go { background: var(--ink); color: var(--paper); border: 0; border-radius: 4px; padding: 10px 14px; font-weight: 700; font-size: 14px; white-space: nowrap; }
 .go:hover { background: #000; }
 .call.locked { opacity: .55; }
+.howto { margin-top: 8px; font-size: 13px; }
+.howto summary { cursor: pointer; font-weight: 700; color: #8a4b00; width: max-content; }
+.howto-set { margin: 6px 0 4px; font-family: var(--mono); font-size: 12.5px; }
+.howto-set span { color: #6d6656; }
+.howto ol { margin: 4px 0; padding-left: 20px; line-height: 1.55; }
+.howto-tip { margin: 4px 0; color: #4b463b; }
+.howto-note { margin: 4px 0 0; font-size: 11.5px; color: #8a8372; }
 .free-call { background: var(--tungsten); color: var(--ink); border-radius: 4px; border-bottom: 0; margin-bottom: 14px; }
 .free-call .no { color: var(--ink); border-color: var(--ink); }
 .free-call .meta { color: var(--ink); }
@@ -245,10 +252,10 @@ const CONTRACTS = [
     },
   },
   {
-    id: "flip", scene: 23, title: "서커스 오브 더 데드", dir: "noh", reward: 340, need: 6, W: 1900, t2: 950, t3: 1250,
+    id: "flip", scene: 23, title: "서커스 오브 더 데드", dir: "noh", reward: 340, need: 6, W: 1900, t2: 950, t3: 1250, spinBoost: 1.7, // tuck assist: spins faster here so 2 flips fit a stock cannon's airtime
     brief: "공중에서 두 바퀴 돌고 매트에 착지. 원테이크로 간다. (비행 중 ⟲ ⟳ 또는 ← →)",
     objs: [{ t: "공중 2회전 이상", f: s => s.flipsAir >= 2 }, { t: "안전 매트에 착지", end: true, f: s => s.landed === "mat" }],
-    build(L) { L.soft("mat", 1250, 340); L.zone("mat", 1250, 340, 170); L.marker(1250, "착지!"); },
+    build(L) { L.soft("mat", 1230, 420); L.zone("mat", 1230, 420, 170); L.marker(1230, "착지!"); },
   },
   {
     id: "bell", scene: 31, title: "종소리가 울리면", dir: "choi", reward: 420, need: 8, W: 1900, t2: 720, t3: 1000,
@@ -290,7 +297,7 @@ const CONTRACTS = [
     id: "airbag", scene: 57, title: "앵글 밖 에어백", dir: "jenny", reward: 520, need: 18, W: 1900, t2: 560, t3: 700,
     brief: "떨어지는 모습은 카메라 프레임 안에 담기고, 착지는 프레임 바로 밖 작은 에어백에. 에어백이 화면에 걸리면 CG팀이 운다.",
     objs: [{ t: "카메라 프레임 안을 지나가기", f: s => s.inFrame }, { t: "프레임 밖 에어백에 착지", end: true, f: s => s.landed === "airbag" }],
-    build(L) { L.frame(880, 230, 360, 470); L.soft("airbag", 1330, 130); L.zone("airbag", 1330, 130, 170); L.marker(1330, "숨은 에어백", GROUND - 90); },
+    build(L) { L.frame(880, 230, 360, 470); L.soft("airbag", 1340, 170); L.zone("airbag", 1340, 170, 170); L.marker(1330, "숨은 에어백", GROUND - 90); },
   },
   {
     id: "polecat", scene: 59, title: "폴 캣 스윙", dir: "noh", reward: 540, need: 20, W: 2000, t2: 640, t3: 820, action: "release",
@@ -303,10 +310,10 @@ const CONTRACTS = [
     brief: "이번엔 사람이 아니라 추진기 달린 전기 스포츠카를 쏜다. 가스는 5초분. 옥상 착지대에 바퀴부터 사뿐히 내려놔.",
     objs: [
       { t: "옥상 착지대에 착지", end: true, f: s => s.landed === "pad" },
-      { t: "충격 속도 6 이하로 사뿐히", f: s => s.touched && s.maxImpact <= 6 },
+      { t: "충격 속도 8 이하로 사뿐히", f: s => s.touched && s.maxImpact <= 8 },
       { t: "바퀴가 아래로 향하게", end: true, f: s => s.upright },
     ],
-    build(L) { L.roof(1450, 300, 230); L.marker(1450, "착지대", GROUND - 300); },
+    build(L) { L.roof(1450, 300, 320); L.marker(1450, "착지대", GROUND - 300); },
   },
   {
     id: "burn", scene: 61, title: "불붙은 채로 2초", dir: "jenny", reward: 540, need: 24, W: 1800, t2: 700, t3: 860, action: "burn",
@@ -346,7 +353,8 @@ const CONTRACTS = [
     id: "bus", scene: 77, title: "버스 8대 넘기", dir: "choi", reward: 600, need: 34, W: 2300, t2: 520, t3: 760,
     brief: "오토바이도 없이 사람이 직접 넘는다. 버스 8대를 넘어 건초더미에 착지.",
     objs: [{ t: "버스를 넘어 건초더미에 착지", end: true, f: s => s.landed === "hay" }],
-    build(L) { for (let i = 0; i < 8; i++) L.bus(560 + i * 125); L.soft("hay", 1700, 300); L.zone("hay", 1700, 300, 170); L.marker(1700, "착지!"); },
+    // buses packed a little tighter and a wider hay pile so a stock cannon can make it (was one setting only)
+    build(L) { for (let i = 0; i < 8; i++) L.bus(540 + i * 116); L.soft("hay", 1630, 360); L.zone("hay", 1630, 360, 170); L.marker(1630, "착지!"); },
   },
   {
     id: "final", scene: 99, title: "헬기 추락 피날레", dir: "wang", reward: 800, need: 38, W: 2100, t2: 1000, t3: 1350,
@@ -360,6 +368,39 @@ const CONTRACTS = [
     },
   },
 ];
+
+/* how to pass each contract, worked out by playing every one with a stock cannon (no upgrades).
+   a/p = the angle and power to set; keys = presses from the default 42° / 72% (↑↓ 2° each, ←→ 3% each). */
+const GUIDE = {
+  hay:        { a: 42, p: 72, keys: "기본값 그대로", steps: ["바로 Space로 발사."], tip: "힘을 조금 올리면(→) 더 멀리, 내리면(←) 더 가까이 떨어져요." },
+  melon:      { a: 42, p: 78, keys: "→ 2번", steps: ["발사하면 가판대 수박 위로 떨어져 3통 넘게 깨져요."] },
+  glass:      { a: 42, p: 81, keys: "→ 3번", steps: ["발사하면 유리창 2장 이상을 뚫고 지나가요."] },
+  flip:       { a: 46, p: 90, keys: "↑ 2번, → 6번", steps: ["발사 직후부터 착지할 때까지 → 를 계속 누르고 있기.", "두 바퀴 돌고 매트에 떨어져요. 이 의뢰는 몸을 웅크려 회전이 더 빨라요."] },
+  bell:       { a: 50, p: 99, keys: "↑ 4번, → 9번", steps: ["담장을 넘어 종에 몸이 닿아야 해요. 힘은 거의 최대로."], tip: "힘이 모자라면 종 앞에서 떨어져요." },
+  balloon:    { a: 44, p: 90, keys: "↑ 1번, → 6번", steps: ["발사하면 풍선 무리 한가운데를 지나가며 4개 넘게 터져요."] },
+  airram:     { a: 38, p: 54, keys: "↓ 2번, ← 6번", steps: ["약하게 쏴서 첫 번째 발판에 떨어지게.", "발판이 알아서 튕겨 두 번째 발판, 발코니로 보내 줘요."] },
+  tramp:      { a: 42, p: 57, keys: "← 5번", steps: ["약하게 쏴서 트램펄린에 떨어지게.", "튀어 올라 담장을 넘어 건초더미로 가요."] },
+  ratchet:    { a: 42, p: 81, keys: "→ 3번", steps: ["첫 담장을 넘고 내려오다가, 몸이 바닥 눈금 13~16m쯤(7m와 17m 눈금 사이, 17m 쪽)에 오면 Space를 딱 한 번.", "케이블이 당겨져 속도가 줄고 소품 벽을 적당한 세기로 뚫어요."], tip: "너무 일찍 누르면 벽까지 못 가고, 늦게 누르면 벽을 너무 세게 쳐요." },
+  airbag:     { a: 42, p: 96, keys: "→ 8번", steps: ["발사하면 카메라 프레임을 지나 프레임 밖 에어백에 떨어져요."] },
+  polecat:    { a: 42, p: 87, keys: "→ 5번", steps: ["장대 끝에 닿으면 자동으로 잡아요.", "잡은 뒤 '하나, 둘' (0.5~1초) 세고 Space로 놓기. ← → 반동은 안 써도 돼요."], tip: "너무 오래 매달리면 짐칸을 지나쳐요." },
+  roadster:   { a: 42, p: 99, keys: "→ 9번", steps: ["발사 후 차가 가장 높이 올라갔다가 내려오기 시작하면 ↑ 를 꾹 누르고 착지할 때까지 유지.", "추진기가 낙하 속도를 줄여 착지대에 사뿐히 내려앉아요."], tip: "올라가는 동안 ↑ 를 누르면 착지대를 지나쳐 버려요." },
+  burn:       { a: 44, p: 99, keys: "↑ 1번, → 9번", steps: ["불이 붙은 채로 담장을 넘어 물탱크에 바로 들어가요. 다른 조작은 필요 없어요."] },
+  bulb:       { a: 52, p: 96, keys: "↑ 5번, → 8번", steps: ["전선에 닿으면 매달려 미끄러지며 전구를 깨요.", "아무 키도 누르지 말고 끝까지 타기. 끝에서 자동으로 놓고 매트에 떨어져요."], tip: "10번 중 9번 성공. 실패하면 한 번 더." },
+  ring:       { a: 42, p: 99, keys: "→ 9번", steps: ["발사하면 불 고리 2개 넘게 통과하고 매트에 떨어져요."] },
+  corkscrew:  { a: 48, p: 96, keys: "↑ 3번, → 8번", steps: ["발사 직후부터 → 를 누르고 있기.", "차가 뒤집혀 바닥이 하늘을 본 뒤 조금 더 돌았을 때(3분의 2바퀴쯤) 손 떼기. 나머지는 차가 램프 각도에 맞춰 줘요."], tip: "끝까지 누르고 있으면 너무 많이 돌아요." },
+  cannonroll: { a: 40, p: 99, keys: "↓ 1번, → 9번", steps: ["→ 를 누르고 있다가 왼쪽 위 기록판에 '회전 2'가 뜨면 손 떼기.", "나머지는 땅에서 굴러서 5바퀴를 채우고 바퀴로 서요."] },
+  bus:        { a: 42, p: 99, keys: "→ 9번", steps: ["힘을 거의 최대로. 버스 8대를 넘어 건초더미에 떨어져요."] },
+  final:      { a: 42, p: 99, keys: "→ 9번", steps: ["발사하면 매달린 상자 2개 넘게 부수고 수영장에 풍덩."] },
+};
+function guideHtml(id) {
+  const g = GUIDE[id]; if (!g) return "";
+  return `<details class="howto"><summary>공략 보기</summary>
+    <div class="howto-set"><b>각도 ${g.a}° · 힘 ${g.p}%</b> <span>(기본 42° · 72%에서 ${g.keys})</span></div>
+    <ol>${g.steps.map(s => `<li>${s}</li>`).join("")}</ol>
+    ${g.tip ? `<p class="howto-tip">💡 ${g.tip}</p>` : ""}
+    <p class="howto-note">장비 업그레이드 없이 직접 해 보고 통과한 값이에요. 각도·힘은 이전 촬영 값이 남아 있으니, 왼쪽 위 기록판의 숫자를 보고 맞추세요(↑↓ 한 번에 2°, ←→ 한 번에 3%).</p>
+  </details>`;
+}
 
 /* free shoot (sandbox): every prop on one long set, no goals, no money in or out */
 const FREE = {
@@ -693,7 +734,7 @@ function onCollision(e) {
       }
       stats.maxImpact = Math.max(stats.maxImpact, rel);
       if (rel > 9) { fx("sfx", { n: "crate" }); floater(r.position.x, r.position.y - 50, "쾅!", "#ff4b3a"); shake = Math.max(shake, 12); }
-      else if (rel > 0.5 && stats.airborne) floater(r.position.x, r.position.y - 50, rel <= 6 ? "사뿐!" : "덜컹!", rel <= 6 ? "#4fd18b" : "#ffb23e");
+      else if (rel > 0.5 && stats.airborne) floater(r.position.x, r.position.y - 50, rel <= 8 ? "사뿐!" : "덜컹!", rel <= 8 ? "#4fd18b" : "#ffb23e");
     }
     if (stats.airborne && LANDING[k]) stats.airborne = false;
     if (LANDING[k] && !rag.car) stats.lastSurface = k; // remembers what the stuntman last hit (bare ground → ambulance)
@@ -776,7 +817,7 @@ function beforeUpdate() {
     if (stats.burnLeft <= 0) { stats.burning = false; rag.burning = false; stats.injury += 80; floater(t.position.x, t.position.y - 50, "앗 뜨거!", "#ff4b3a"); fx("sfx", { n: "thud", v: 20 }); }
   }
   if (spinInput && stats.airborne) {
-    const av = Math.max(-0.32, Math.min(0.32, t.angularVelocity + spinInput * airTorque(save.up.air)));
+    const av = Math.max(-0.32, Math.min(0.32, t.angularVelocity + spinInput * airTorque(save.up.air) * (contract.spinBoost || 1)));
     Body.setAngularVelocity(t, av);
   }
   const W = level.water;
@@ -933,7 +974,7 @@ function score(c, s) {
     [`트램펄린 ${s.bounces}회`, s.bounces * 80],
     ["리얼한 고통 연기", c.projectile === "car" ? 0 : Math.round(Math.min(150, s.injury))],
     ["남은 가스", c.projectile === "car" && !c.noFuel && success ? Math.round(s.fuel / CAR_FUEL * 250) : 0],
-    ["사뿐한 착지", c.projectile === "car" && !c.rollTarget && success ? Math.round(Math.max(0, 6 - s.maxImpact) * 50) : 0],
+    ["사뿐한 착지", c.projectile === "car" && !c.rollTarget && success ? Math.round(Math.max(0, 8 - s.maxImpact) * 40) : 0],
     [`캐논 롤 ${s.rolls}회전`, c.rollTarget ? s.rolls * 60 : 0],
     ["세계 기록급 롤(8회+)", c.rollTarget && s.rolls >= 8 ? 500 : 0],
     ["프레임 안 체공", c.id === "airbag" && success ? Math.round(s.frameSteps / 60 * 150) : 0],
@@ -1152,6 +1193,7 @@ function renderOffice() {
         <div class="dir">${DIRECTORS[c.dir]}</div>
         <div class="brief">“${c.brief}”</div>
         <div class="meta"><span>${starsHtml(st)}</span><span>출연료 ${fmt(pay)}${cleared ? " (재촬영)" : ""}</span>${locked ? `<span>★ ${c.need}개 필요</span>` : ""}</div>
+        ${guideHtml(c.id)}
       </div>
       <button class="go" type="button" data-go="${i}" ${locked ? "disabled" : ""}>${locked ? "잠김" : "촬영 시작"}</button>
     </div>`;
@@ -1872,6 +1914,9 @@ window.__stunt = {
   get rag() { return rag; }, get level() { return level; }, start: i => startContract(i), thrust: v => { thrustInput = v; }, replay: () => startReplay(), get state() { return state; }, spin: d => { spinInput = d; }, aim: (a, p) => { aim.angle = a; aim.power = p; }, launch: fire, action: launch, get amb() { return amb && { e: amb.e, x: amb.x, loaded: amb.loaded }; },
   sim(steps) { for (let i = 0; i < steps && (state === "fly" || state === "aim"); i++) stepPhysics(); return { state, stats: stats && JSON.parse(JSON.stringify(stats)), x: rag && rag.torso.position.x, y: rag && rag.torso.position.y }; },
   get save() { return save; }, set save(s) { save = s; },
+  get contracts() { return CONTRACTS; }, get contract() { return contract; }, get stats() { return stats; },
+  score: () => stats && score(contract, stats),
+  step: () => { if (state === "fly" || state === "aim") stepPhysics(); return state; },
 };
 try { window.claude && window.claude.hot && window.claude.hot.snapshot && window.claude.hot.snapshot(() => ({ save })); } catch (e) {}
 const boot = d => { if (d && d.save) save = Object.assign(clone(DEFAULT), d.save); start(); };
