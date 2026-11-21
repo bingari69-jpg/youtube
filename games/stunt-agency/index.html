@@ -325,13 +325,13 @@ const CONTRACTS = [
   },
   {
     id: "corkscrew", scene: 68, title: "코르크스크루 점프", dir: "noh", reward: 600, need: 30, W: 2000, t2: 620, t3: 780, projectile: "car", noFuel: true,
-    brief: "차가 공중에서 딱 한 바퀴 돌고 맞은편 착지 램프에 바퀴부터 내려앉는다. 반 바퀴도, 두 바퀴도 안 돼. (← → 로 회전)",
+    brief: "차가 공중에서 딱 한 바퀴 돌고 맞은편 착지 램프에 바퀴부터 내려앉는다. 거의 한 바퀴 돌았을 때 손을 떼면 차가 알아서 램프 각도에 맞춰. 초록 점선이 떨어질 곳이야. (← → 로 회전)",
     objs: [
       { t: "공중에서 정확히 1회전", f: s => s.flipsAir === 1 },
       { t: "착지 램프에 바퀴부터 닿기", f: s => s.touchAligned },
-      { t: "램프 위에서 멈추기", end: true, f: s => s.landed === "ramp" },
+      { t: "램프나 그 앞 활주로에서 바퀴로 멈추기", end: true, f: s => s.landed === "ramp" && s.upright },
     ],
-    build(L) { L.ramp(1400, 520, 0.3); L.marker(1300, "바퀴부터!", GROUND - 240); },
+    build(L) { L.ramp(1300, 720, 0.3); L.marker(1150, "바퀴부터!", GROUND - 260); },
   },
   {
     id: "cannonroll", scene: 70, title: "캐논 롤 5회전", dir: "choi", reward: 620, need: 32, W: 2600, t2: 800, t3: 1000, projectile: "car", noFuel: true, rollTarget: 5,
@@ -462,7 +462,8 @@ function buildLevel(c) {
     add(kind(Bodies.rectangle(x, cy, len, 24, { isStatic: true, angle: ang, friction: 1, restitution: 0 }), "ramp", { len }));
     const hx = Math.cos(ang) * len / 2, hy = Math.sin(ang) * len / 2;
     L.decor.push({ type: "post", x: x - hx + 20, y0: cy - hy + 14, y1: GROUND }, { type: "post", x: x, y0: cy + 12, y1: GROUND });
-    L.zones.push({ k: "ramp", x0: x - hx, x1: x + hx + 60, y0: cy - hy - 160, y1: GROUND + 5 });
+    // the flat run-out after the ramp counts as a clean stop too
+    L.zones.push({ k: "ramp", x0: x - hx, x1: x + hx + 300, y0: cy - hy - 160, y1: GROUND + 5 });
   };
   L.airram = (x, vx, vy) => add(kind(Bodies.rectangle(x, GROUND - 9, 96, 18, { isStatic: true }), "airram", { vx, vy }));
   L.balcony = (x, y, w) => {
@@ -630,7 +631,7 @@ function onCollision(e) {
     if (rag.car && LANDING[k]) {
       if (!stats.touched) {
         stats.touched = true; stats.touchStep = recording ? recording.frames.length : 0;
-        if (k === "ramp") { const d = ((r.angle - o.angle) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI; stats.touchAligned = Math.abs(d) < 0.6; }
+        if (k === "ramp") { const d = ((r.angle - o.angle) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI; stats.touchAligned = Math.abs(d) < 0.9; }
       }
       stats.maxImpact = Math.max(stats.maxImpact, rel);
       if (rel > 9) { fx("sfx", { n: "crate" }); floater(r.position.x, r.position.y - 50, "쾅!", "#ff4b3a"); shake = Math.max(shake, 12); }
@@ -769,6 +770,12 @@ function carControl(t) {
     } else {
       const acc = contract.id === "corkscrew" ? 0.007 : 0.0045, cap = contract.id === "corkscrew" ? 0.12 : 0.09;
       av = spinInput ? av + spinInput * acc * ts : av * 0.96;
+      // corkscrew assist: once most of a turn is done and no key is held, settle toward the ramp angle
+      if (contract.id === "corkscrew" && !spinInput && Math.abs(stats.cumAngle) > Math.PI * 2 * 0.8) {
+        const target = 0.3 + Math.round((t.angle - 0.3) / (Math.PI * 2)) * Math.PI * 2;
+        av += Math.max(-0.006, Math.min(0.006, (target - t.angle) * 0.03 - av * 0.05)) * ts;
+        rag.assist = true;
+      } else rag.assist = false;
       Body.setAngularVelocity(t, Math.max(-cap, Math.min(cap, av)));
     }
   }
@@ -1426,6 +1433,10 @@ function drawSwingPreview() {
     const h = rag.limbs.armR, ts = engine.timing.timeScale || 1;
     x = rag.torso.position.x; y = rag.torso.position.y;
     vx = (h.velocity.x * 1.15 + 1.2 * ts) / ts; vy = h.velocity.y * 1.1 / ts;
+  } else if (contract.id === "corkscrew" && stats.airborne && rag.car) {
+    // where the car will come down if it keeps flying
+    const t = rag.torso, ts = engine.timing.timeScale || 1;
+    x = t.position.x; y = t.position.y; vx = t.velocity.x / ts; vy = t.velocity.y / ts;
   } else if (level.wireLine && stats.onWire) {
     // the same release velocity the wire hands over: along the wire at the current slide speed
     const Wl = level.wireLine;
