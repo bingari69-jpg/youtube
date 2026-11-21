@@ -306,9 +306,9 @@ const CONTRACTS = [
   },
   {
     id: "bulb", scene: 66, title: "전구 전선 미끄럼", dir: "choi", reward: 580, need: 26, W: 2000, t2: 860, t3: 1060, action: "release",
-    brief: "쇼핑몰 전구 전선에 매달려 미끄러지면서 전구 5개 이상 깨. 아래 유리 지붕은 절대 깨지 말고 매트에 착지. (Space / ↓ 로 놓기)",
+    brief: "쇼핑몰 전구 전선에 매달려 미끄러지면서 전구 5개 이상 깨. 아래 유리 지붕은 절대 깨지 말고 매트에 착지. 매달린 동안 초록 점선이 떨어질 길을 보여줘. (Space / ↓ 로 놓기, 끝까지 타면 자동으로 놓음)",
     objs: [{ t: "전구 5개 이상 깨기", f: s => s.broken.bulb >= 5 }, { t: "유리 지붕은 무사히", f: s => s.wireDone && s.broken.skylight === 0 }, { t: "매트에 착지", end: true, f: s => s.landed === "mat" }],
-    build(L) { L.wire(470, GROUND - 610, 1300, GROUND - 350, 8); L.skylight(1430, 170, 120); L.soft("mat", 1660, 240); L.zone("mat", 1660, 240, 170); L.marker(560, "매달리기!", GROUND - 650); },
+    build(L) { L.wire(470, GROUND - 610, 1300, GROUND - 350, 8); L.skylight(1420, 150, 100); L.soft("mat", 1690, 340); L.zone("mat", 1690, 340, 170); L.marker(560, "매달리기!", GROUND - 650); },
   },
   {
     id: "ring", scene: 64, title: "불타는 서커스", dir: "wang", reward: 540, need: 28, W: 1900, t2: 820, t3: 1060,
@@ -676,7 +676,7 @@ function beforeUpdate() {
       for (const b of [rag.limbs.armR, rag.limbs.armL, rag.torso]) {
         const t0 = ((b.position.x - Wl.x0) * Wl.dx + (b.position.y - Wl.y0) * Wl.dy) / Wl.len;
         const px = Wl.x0 + Wl.dx * Wl.len * t0, py = Wl.y0 + Wl.dy * Wl.len * t0;
-        if (t0 > 0 && t0 < 0.97 && Math.hypot(b.position.x - px, b.position.y - py) < 30) {
+        if (t0 > 0 && t0 < 0.97 && Math.hypot(b.position.x - px, b.position.y - py) < 55) {
           rag.trolley = Bodies.circle(px, py, 5, { isStatic: true, isSensor: true }); rag.trolley.plugin = { kind: "trolley" };
           Composite.add(engine.world, rag.trolley);
           rag.grip = Constraint.create({ bodyA: rag.trolley, bodyB: rag.limbs.armR, pointB: { x: 0, y: 18 }, length: 0, stiffness: 0.6 });
@@ -1405,10 +1405,18 @@ function drawCannon() {
   ctx.fillStyle = "#444a5e"; ctx.beginPath(); ctx.arc(LAUNCHER.x, LAUNCHER.y + 10, 22, 0, Math.PI * 2); ctx.fill();
 }
 function drawSwingPreview() {
-  if (state !== "fly" || !level.pend || !stats || !stats.grabbed || stats.released) return;
-  const h = rag.limbs.armR, ts = engine.timing.timeScale || 1;
-  let x = rag.torso.position.x, y = rag.torso.position.y;
-  let vx = (h.velocity.x * 1.15 + 1.2 * ts) / ts, vy = h.velocity.y * 1.1 / ts;
+  if (state !== "fly" || !stats) return;
+  let x, y, vx, vy;
+  if (level.pend && stats.grabbed && !stats.released) {
+    const h = rag.limbs.armR, ts = engine.timing.timeScale || 1;
+    x = rag.torso.position.x; y = rag.torso.position.y;
+    vx = (h.velocity.x * 1.15 + 1.2 * ts) / ts; vy = h.velocity.y * 1.1 / ts;
+  } else if (level.wireLine && stats.onWire) {
+    // the same release velocity the wire hands over: along the wire at the current slide speed
+    const Wl = level.wireLine;
+    x = rag.torso.position.x; y = rag.torso.position.y;
+    vx = Wl.dx * stats.wireV; vy = Wl.dy * stats.wireV;
+  } else return;
   ctx.fillStyle = "rgba(79,209,139,.9)";
   for (let i = 0; i < 160; i++) {
     vx *= 0.996; vy = vy * 0.996 + G_STEP; x += vx; y += vy;
