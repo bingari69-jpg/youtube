@@ -108,6 +108,11 @@ button:focus-visible { outline: 3px solid var(--tungsten); outline-offset: 2px; 
 .sell:hover { color: var(--paper); border-color: var(--muted); }
 .buy { background: transparent; color: var(--tungsten); border: 1.5px solid var(--tungsten); border-radius: 4px; padding: 8px 10px; font-family: var(--mono); font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums; }
 .buy:disabled { color: var(--muted); border-color: var(--line); cursor: not-allowed; }
+.testbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 14px; border: 1px dashed var(--tungsten); border-radius: 6px; font-size: 13px; }
+.switch { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--tungsten); cursor: pointer; }
+.switch input { width: 18px; height: 18px; accent-color: var(--tungsten); }
+.testbar .link { color: var(--tungsten); font-size: 13px; }
+.testnote { color: var(--muted); font-size: 12px; }
 .foot { display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: space-between; font-size: 12px; color: var(--muted); }
 .link { background: none; border: 0; color: var(--muted); text-decoration: underline; padding: 0; font-size: 12px; }
 .confirm { display: inline-flex; gap: 8px; align-items: center; }
@@ -176,7 +181,7 @@ const SAVE_KEY = "stunt-agency-v1";
 const G_STEP = 0.001 * STEP * STEP; // per-step gravity, matches Matter's integrator
 
 /* ================= save ================= */
-const DEFAULT = { money: 150, stars: {}, cleared: {}, up: { power: 0, air: 0, pad: 0, agent: 0, aim: 0 }, muted: false, seenIntro: false };
+const DEFAULT = { money: 150, stars: {}, cleared: {}, up: { power: 0, air: 0, pad: 0, agent: 0, aim: 0 }, muted: false, seenIntro: false, unlockAll: true };
 const clone = o => JSON.parse(JSON.stringify(o));
 function loadSave() {
   try {
@@ -188,6 +193,8 @@ function loadSave() {
 let save = loadSave();
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 const totalStars = () => Object.values(save.stars).reduce((a, b) => a + b, 0);
+// test mode opens every contract regardless of stars, so each one can be tried right away
+const isUnlocked = c => save.unlockAll || totalStars() >= c.need;
 
 /* ================= upgrades ================= */
 const UPG = [
@@ -980,7 +987,7 @@ function renderOffice() {
   const ts = totalStars();
   const tabInfo = TABS.map(t => {
     const list = CONTRACTS.filter(c => CAT[c.id] === t.id);
-    const open = list.filter(c => ts >= c.need && !save.cleared[c.id]).length;
+    const open = list.filter(c => isUnlocked(c) && !save.cleared[c.id]).length;
     return { ...t, total: list.length, done: list.filter(c => save.cleared[c.id]).length, open };
   });
   const tabsHtml = `<div class="tabs" role="tablist" aria-label="스턴트 장르">${tabInfo.map(t => `
@@ -989,7 +996,7 @@ function renderOffice() {
     </button>`).join("")}</div>`;
   const cur = tabInfo.find(t => t.id === officeTab);
   const calls = CONTRACTS.map((c, i) => [c, i]).filter(([c]) => CAT[c.id] === officeTab).map(([c, i]) => {
-    const locked = ts < c.need, st = save.stars[c.id] || 0, cleared = save.cleared[c.id];
+    const locked = !isUnlocked(c), st = save.stars[c.id] || 0, cleared = save.cleared[c.id];
     const pay = Math.round(c.reward * (cleared ? 0.35 : 1) * (1 + 0.15 * save.up.agent));
     return `<div class="call ${locked ? "locked" : ""}">
       <div class="no">S#${c.scene}</div>
@@ -1025,6 +1032,10 @@ function renderOffice() {
         <div><span>등급</span><b>${rankOf(ts)}</b></div>
       </div>
     </header>
+    <div class="testbar" role="group" aria-label="테스트 모드">
+      <label class="switch"><input type="checkbox" id="unlockAll" ${save.unlockAll ? "checked" : ""}><span>테스트 모드: 모든 의뢰 열기</span></label>
+      ${save.unlockAll ? `<button class="link" type="button" data-cash="1">테스트 자금 +$1,000</button><span class="testnote">별 개수와 상관없이 모든 의뢰를 찍을 수 있습니다. 끄면 원래 해금 규칙으로 돌아갑니다.</span>` : `<span class="testnote">끄면 별을 모아야 다음 의뢰가 열립니다.</span>`}
+    </div>
     <div class="cols">
       <section style="min-width:0"><h2 class="sec-h"><span>오늘의 콜시트</span><span>전체 ${CONTRACTS.filter(c => save.cleared[c.id]).length}/${CONTRACTS.length} 완료</span></h2>
         ${tabsHtml}
@@ -1037,6 +1048,9 @@ function renderOffice() {
     </div>
   </div>`;
 }
+$("office").addEventListener("change", e => {
+  if (e.target.id === "unlockAll") { save.unlockAll = e.target.checked; persist(); renderOffice(); const cb = document.getElementById("unlockAll"); if (cb) cb.focus(); }
+});
 $("office").addEventListener("click", e => {
   const go = e.target.closest("[data-go]"), buy = e.target.closest("[data-buy]"), sell = e.target.closest("[data-sell]"), rs = e.target.closest("[data-reset]");
   if (sell) {
@@ -1051,10 +1065,11 @@ $("office").addEventListener("click", e => {
     const u = UPG.find(x => x.id === buy.dataset.buy), l = save.up[u.id], cost = upCost(u, l);
     if (l < u.max && save.money >= cost) { save.money -= cost; save.up[u.id]++; persist(); tone(880, 0.12, 0.15, "triangle"); renderOffice(); }
   }
+  if (e.target.closest("[data-cash]")) { save.money += 1000; persist(); tone(880, 0.12, 0.15, "triangle"); renderOffice(); return; }
   if (rs) {
     if (rs.dataset.reset === "arm") resetArmed = true;
     else if (rs.dataset.reset === "no") resetArmed = false;
-    else { const m = save.muted; save = clone(DEFAULT); save.muted = m; save.seenIntro = true; persist(); resetArmed = false; }
+    else { const m = save.muted, u = save.unlockAll; save = clone(DEFAULT); save.muted = m; save.unlockAll = u; save.seenIntro = true; persist(); resetArmed = false; }
     renderOffice();
   }
 });
@@ -1103,7 +1118,7 @@ function showResult(r) {
   const c = contract, newBest = r.stars > r.prevStars;
   const rows = r.sc.parts.filter(p => p[1] > 0).map(p => `<tr><td>${p[0]}</td><td>${p[1]} 점</td></tr>`).join("");
   const nextIdx = CONTRACTS.indexOf(c) + 1, next = CONTRACTS[nextIdx];
-  const nextOpen = next && totalStars() >= next.need;
+  const nextOpen = next && isUnlocked(next);
   $("result").innerHTML = `<div class="card" role="dialog" aria-label="촬영 결과">
     <div class="stamp ${r.sc.success ? "ok" : ""}">${r.sc.success ? "오케이!" : "컷!"}</div>
     <p class="quote">“${r.line}”<small>— ${DIRECTORS[c.dir]}, 「${c.title}」 TAKE ${takeNo}</small></p>
