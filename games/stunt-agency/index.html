@@ -284,9 +284,9 @@ const CONTRACTS = [
   },
   {
     id: "polecat", scene: 59, title: "폴 캣 스윙", dir: "noh", reward: 540, need: 20, W: 2000, t2: 640, t3: 820, action: "release",
-    brief: "트럭 크레인에 매달린 장대 끝을 붙잡아. 그네처럼 반동을 키운 다음 놓고 날아서 옆 트럭 짐칸에 착지. (Space / ↓ 로 놓기)",
+    brief: "트럭 크레인에 매달린 장대 끝을 붙잡아. 그네처럼 반동을 키운 다음 놓고 날아서 옆 트럭 짐칸에 착지. 매달린 동안 초록 점선이 날아갈 길을 보여줘. (Space / ↓ 로 놓기)",
     objs: [{ t: "장대 끝 붙잡기", f: s => s.grabbed }, { t: "놓고 날아가기", f: s => s.released }, { t: "옆 트럭 짐칸에 착지", end: true, f: s => s.landed === "truck" }],
-    build(L) { L.truck(830, 280, false); L.trapeze(900, GROUND - 610, 230); L.truck(1430, 380, true); L.marker(900, "잡기!", GROUND - 400); },
+    build(L) { L.truck(830, 280, false); L.trapeze(900, GROUND - 610, 230); L.truck(1370, 460, true); L.marker(900, "잡기!", GROUND - 400); },
   },
   {
     id: "roadster", scene: 58, title: "로켓 로드스터", dir: "jenny", reward: 520, need: 22, W: 2000, t2: 700, t3: 880, projectile: "car",
@@ -658,15 +658,15 @@ function beforeUpdate() {
     const rod = P.rod, ux = -Math.sin(rod.angle), uy = Math.cos(rod.angle);
     const tipX = rod.position.x + ux * P.len / 2, tipY = rod.position.y + uy * P.len / 2;
     if (!stats.grabbed) {
-      const hand = [rag.limbs.armR, rag.limbs.armL, rag.torso, rag.head].find(b => Math.hypot(b.position.x - tipX, b.position.y - tipY) < 60);
+      const hand = [rag.limbs.armR, rag.limbs.armL, rag.torso, rag.head].find(b => Math.hypot(b.position.x - tipX, b.position.y - tipY) < 85);
       if (hand) {
         rag.grip = Constraint.create({ bodyA: rod, pointA: { x: 0, y: P.len / 2 }, bodyB: rag.limbs.armR, pointB: { x: 0, y: 18 }, length: 0, stiffness: 0.6 });
         Composite.add(engine.world, rag.grip); stats.grabbed = true; stats.airborne = true;
-        fx("sfx", { n: "ratchet" }); floater(tipX, tipY - 40, "잡았다!", "#4fd18b");
+        fx("sfx", { n: "ratchet" }); floater(tipX, tipY - 40, "잡았다!", "#4fd18b"); slowLeft = 24;
       }
     } else if (!stats.released) {
-      if (spinInput) Body.setAngularVelocity(rod, rod.angularVelocity - spinInput * 0.003 * ts);
-      if (pressed) { Composite.remove(engine.world, rag.grip); rag.grip = null; stats.released = true; fx("sfx", { n: "whoosh" }); slowLeft = 16; }
+      if (spinInput) Body.setAngularVelocity(rod, rod.angularVelocity - spinInput * 0.0055 * ts);
+      if (pressed) { Composite.remove(engine.world, rag.grip); rag.grip = null; stats.released = true; for (const p of rag.parts) Body.setVelocity(p, { x: p.velocity.x * 1.15 + 1.2 * ts, y: p.velocity.y * 1.1 }); fx("sfx", { n: "whoosh" }); slowLeft = 16; }
       return;
     }
   }
@@ -1404,6 +1404,20 @@ function drawCannon() {
   ctx.restore();
   ctx.fillStyle = "#444a5e"; ctx.beginPath(); ctx.arc(LAUNCHER.x, LAUNCHER.y + 10, 22, 0, Math.PI * 2); ctx.fill();
 }
+function drawSwingPreview() {
+  if (state !== "fly" || !level.pend || !stats || !stats.grabbed || stats.released) return;
+  const h = rag.limbs.armR, ts = engine.timing.timeScale || 1;
+  let x = rag.torso.position.x, y = rag.torso.position.y;
+  let vx = (h.velocity.x * 1.15 + 1.2 * ts) / ts, vy = h.velocity.y * 1.1 / ts;
+  ctx.fillStyle = "rgba(79,209,139,.9)";
+  for (let i = 0; i < 160; i++) {
+    vx *= 0.996; vy = vy * 0.996 + G_STEP; x += vx; y += vy;
+    if (i % 5 === 4) { ctx.globalAlpha = 1 - i / 200; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill(); }
+    if (y > GROUND - 100 && x > 1100) break;
+    if (y > GROUND) break;
+  }
+  ctx.globalAlpha = 1;
+}
 function drawAim() {
   if (state !== "aim") return;
   const a = aim.angle * Math.PI / 180, v = maxSpeed(save.up.power) * aim.power;
@@ -1527,7 +1541,7 @@ function frame(t) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = "#0d0f17"; ctx.fillRect(0, 0, cw, ch);
   ctx.setTransform(dpr * scale, 0, 0, dpr * scale, (-camX * scale + sx) * dpr, ((ch - H * scale) + sy) * dpr);
-  drawBackdrop(); drawFloor(); drawBodies(); drawCannon(); drawAim(); drawRag(); drawParticles(dtMs / 1000);
+  drawBackdrop(); drawFloor(); drawBodies(); drawCannon(); drawAim(); drawSwingPreview(); drawRag(); drawParticles(dtMs / 1000);
   // slow-mo tint
   if (slowLeft > 0 && !reducedMotion) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = "rgba(120,180,255,.08)"; ctx.fillRect(0, 0, cw, ch); }
   // letterbox bars for film look
